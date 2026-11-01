@@ -1,69 +1,53 @@
 import type { Camera, Group, Scene } from 'three';
-import { WORLD } from '../game/config';
 import { createAtmosphere } from './atmosphere';
-import { box, type Collider, overlapsAny, resolveCircle, type XZ } from './collision';
-import { generateGraveyard } from './graveyard';
-import { createGround } from './ground';
-import { SHRINES } from './layout';
+import type { Course } from './course';
+import { CourseView } from './CourseView';
 import { createLighting } from './lighting';
-import { createChurch } from './props/church';
-import { createCrypt } from './props/crypt';
-import { createFence } from './props/fence';
-import { createHouses } from './props/houses';
-import { createPumpkins } from './props/pumpkins';
-import { createShrines, SHRINE_HALF_SIZE } from './props/shrine';
-import { createTombstones } from './props/tombstones';
-import { createTrees } from './props/trees';
-import { createStreets } from './streets';
-import { CHURCH, generateTown } from './town';
+import { createLondonEye, createShard } from './props/landmarks';
+import { createStation } from './props/station';
+import { Skyline } from './skyline';
+import { createViaduct } from './viaduct';
 
-/** Builds the churchyard, the old town around it, and owns the colliders. */
+/** Speed the London Eye turns at (radians per second); the real one takes half an hour. */
+const EYE_SPIN = 0.03;
+
+/**
+ * Everything around the runner: sky and lights, the viaduct, the trains and
+ * obstacles of the course, the London skyline, the landmarks and Waterloo.
+ */
 export class World {
-  readonly colliders: Collider[] = [];
-  /** Tall obstacles the camera should not pass through. */
-  readonly cameraBlockers: Collider[] = [];
+  readonly courseView = new CourseView();
+  private readonly skyline = new Skyline();
+  private readonly viaduct = createViaduct();
   private readonly sky: Group;
+  private readonly eyeWheel: Group;
 
   constructor(scene: Scene) {
     this.sky = createAtmosphere(scene);
-    scene.add(createLighting(), createGround(), createStreets());
-
-    const fence = createFence(WORLD.halfSize);
-    const crypt = createCrypt();
-    const shrines = SHRINES.map((s) => box(s.x, s.z, SHRINE_HALF_SIZE, SHRINE_HALF_SIZE));
-    const statics = [...fence.colliders, ...crypt.colliders, ...shrines];
-    const layout = generateGraveyard(statics);
-
+    const eye = createLondonEye();
+    this.eyeWheel = eye.wheel;
     scene.add(
-      fence.group,
-      crypt.group,
-      createShrines(SHRINES),
-      createTombstones(layout.tombstones, layout.mounds),
-      createTrees(layout.trees),
-      createPumpkins(layout.pumpkins, layout.carvedPumpkins),
-      createHouses(generateTown()),
+      createLighting(),
+      this.viaduct.group,
+      this.courseView.group,
+      this.skyline.group,
+      createShard(),
+      eye.group,
+      createStation(),
     );
-
-    const church = createChurch();
-    church.position.set(CHURCH.x, 0, CHURCH.z);
-    scene.add(church);
-    this.colliders.push(...statics, ...layout.colliders);
-    this.cameraBlockers.push(...crypt.colliders);
   }
 
-  /** True if a circle at (x, z) is inside the fence and clear of every collider. */
-  isOpen(x: number, z: number, radius: number): boolean {
-    const limit = WORLD.halfSize - 1 - radius;
-    return Math.abs(x) < limit && Math.abs(z) < limit && !overlapsAny(x, z, radius, this.colliders);
+  /** Back to the start of the line: the skyline is rebuilt from its fixed seed. */
+  reset(): void {
+    this.skyline.reset();
   }
 
-  /** Pushes a circle out of all static geometry. Mutates `position`; returns true on contact. */
-  collide(position: XZ, radius: number): boolean {
-    return resolveCircle(position, radius, this.colliders);
-  }
-
-  /** Keeps the sky dome centred on the camera so it always reads as infinitely far. */
-  update(camera: Camera): void {
+  update(dt: number, camera: Camera, distance: number, course: Course): void {
+    this.viaduct.update(distance);
+    this.skyline.update(distance);
+    this.courseView.update(course);
+    this.eyeWheel.rotation.z += EYE_SPIN * dt;
+    // Keep the sky dome centred on the camera so it always reads as infinitely far.
     this.sky.position.copy(camera.position);
   }
 }

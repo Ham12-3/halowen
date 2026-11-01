@@ -1,33 +1,16 @@
-import {
-  type BufferGeometry,
-  Color,
-  CylinderGeometry,
-  Float32BufferAttribute,
-  Group,
-  MeshBasicMaterial,
-  MeshStandardMaterial,
-  Shape,
-  ShapeGeometry,
-  SphereGeometry,
-} from 'three';
+import { type BufferGeometry, CylinderGeometry, Shape, ShapeGeometry, SphereGeometry } from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { instance, type Placement } from './geometry';
+import { paint } from './geometry';
 
-/** Unit pumpkin: radius 1 on X/Z, squashed on Y, face pointing -Z. */
-const SQUASH = 0.72;
+/** Unit pumpkin: radius 1 on X/Z, squashed to this height on Y, face pointing -Z. */
+export const PUMPKIN_SQUASH = 0.72;
+const SQUASH = PUMPKIN_SQUASH;
 
 function ribFactor(theta: number): number {
   return 0.9 + 0.1 * Math.abs(Math.cos(theta * 4));
 }
 
-function paint(geo: BufferGeometry, color: Color): void {
-  const count = geo.attributes.position?.count ?? 0;
-  const colors = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) color.toArray(colors, i * 3);
-  geo.setAttribute('color', new Float32BufferAttribute(colors, 3));
-}
-
-/** Ribbed pumpkin body plus stem, coloured via vertex colours. Shared with shrines. */
+/** Ribbed pumpkin body plus stem, coloured via vertex colours. */
 export function createPumpkinBodyGeometry(): BufferGeometry {
   const sphere = new SphereGeometry(1, 18, 12);
   sphere.deleteAttribute('uv');
@@ -44,13 +27,13 @@ export function createPumpkinBodyGeometry(): BufferGeometry {
     pos.setXYZ(i, x * rib, y * SQUASH * (1 - 0.2 * (1 - rXZ) ** 2), z * rib);
   }
   body.computeVertexNormals();
-  paint(body, new Color(0xd8670f));
+  paint(body, 0xd8670f);
 
   const stem = new CylinderGeometry(0.07, 0.12, 0.34, 6);
   stem.deleteAttribute('uv');
   stem.rotateZ(0.25);
   stem.translate(0.03, 0.68, 0);
-  paint(stem, new Color(0x3e4a1a));
+  paint(stem, 0x3e4a1a);
 
   const merged = mergeGeometries([body, stem], false);
   if (!merged) throw new Error('Could not merge pumpkin geometry');
@@ -95,23 +78,4 @@ export function createPumpkinFaceGeometry(): BufferGeometry {
     pos.setZ(i, -Math.sqrt(Math.max(0, r * r - x * x)) - 0.02);
   }
   return face;
-}
-
-/** Decorative pumpkins; the `carved` subset also gets a glowing face. */
-export function createPumpkins(all: readonly Placement[], carved: readonly Placement[]): Group {
-  const group = new Group();
-  group.name = 'pumpkins';
-  if (all.length === 0) return group;
-
-  const skin = new MeshStandardMaterial({ vertexColors: true, roughness: 0.65 });
-  group.add(instance(createPumpkinBodyGeometry(), skin, all));
-
-  if (carved.length > 0) {
-    const glow = new MeshBasicMaterial({ color: 0xffb347 });
-    const faces = instance(createPumpkinFaceGeometry(), glow, carved);
-    faces.castShadow = false;
-    faces.receiveShadow = false;
-    group.add(faces);
-  }
-  return group;
 }

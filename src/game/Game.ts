@@ -1,57 +1,49 @@
 import { Scene, type WebGLRenderer } from 'three';
-import { Sound, stereoPan } from '../audio/Sound';
-import { Candles } from '../entities/Candles';
-import { Flare } from '../entities/Flare';
-import { Ghosts } from '../entities/Ghosts';
-import { Player } from '../entities/Player';
-import { Shrines } from '../entities/Shrines';
+import { Sound } from '../audio/Sound';
+import { Runner, type RunnerEvents } from '../entities/Runner';
 import { FpsMeter } from '../ui/FpsMeter';
 import { Hud } from '../ui/Hud';
 import { Screens } from '../ui/Screens';
-import { SPAWN } from '../world/layout';
+import { Course } from '../world/course';
 import { World } from '../world/World';
-import { FLARE, GHOST, SHRINE } from './config';
+import { ChaseCamera } from './ChaseCamera';
+import { ROUTE, TRAIN } from './config';
 import { GameState } from './GameState';
 import { Input } from './Input';
 import { Loop } from './Loop';
 import { createRenderer } from './renderer';
-import { ThirdPersonCamera } from './ThirdPersonCamera';
 
-/** After a click, keep the screens down this long while the browser grants pointer lock. */
-const LOCK_GRACE_MS = 500;
-
-/** Owns the renderer and wires world, player, candles, ghosts, shrines, camera, input, UI and sound. */
+/** Owns the renderer and wires the course, world, runner, camera, input, UI and sound together. */
 export class Game {
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
-  private readonly input: Input;
-  private readonly cameraRig: ThirdPersonCamera;
+  private readonly input = new Input();
+  private readonly camera: ChaseCamera;
   private readonly world: World;
-  private readonly player = new Player();
-  private readonly candles: Candles;
-  private readonly ghosts = new Ghosts();
-  private readonly shrines = new Shrines();
-  private readonly flare = new Flare();
+  private readonly course = new Course();
+  private readonly runner = new Runner();
   private readonly state = new GameState();
   private readonly sound = new Sound();
   private readonly hud: Hud;
   private readonly screens: Screens;
   private readonly fps: FpsMeter;
   private readonly loop: Loop;
-  private lockRequestedAt = -Infinity;
+  private paused = false;
+  /** Index of the last carriage coupling passed, for the clickety-clack. */
+  private lastJoint = 0;
+  /** Milestones already announced this run. */
+  private readonly milestones = new Set<string>();
 
   constructor(container: HTMLElement) {
     this.renderer = createRenderer(container);
     this.world = new World(this.scene);
-    this.candles = new Candles(this.world);
-    this.scene.add(this.player.root, this.candles.group, this.ghosts.group, this.shrines.group, this.flare.group);
-
-    this.cameraRig = new ThirdPersonCamera(window.innerWidth / window.innerHeight);
-    this.input = new Input(this.renderer.domElement);
-    this.hud = new Hud(container, this.state.maxLives);
+    this.scene.add(this.runner.root);
+    this.camera = new ChaseCamera(window.innerWidth / window.innerHeight);
+    this.hud = new Hud(container);
     this.screens = new Screens(container, {
-      onPlay: () => this.requestPlay(this.state.isOver),
-      onRestart: () => this.requestPlay(true),
+      onPlay: () => this.play(),
+      onRestart: () => this.play(true),
+      onToggleSound: () => this.sound.toggleMute(),
     });
     this.fps = new FpsMeter(container, this.renderer);
 
@@ -59,6 +51,11 @@ export class Game {
     const unlockAudio = (): void => this.sound.unlock();
     window.addEventListener('pointerdown', unlockAudio);
     window.addEventListener('keydown', unlockAudio);
+    // Leaving the window or tab pauses a run in progress.
+    window.addEventListener('blur', () => this.pause());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.pause();
+    });
     window.addEventListener('resize', this.onResize);
     this.loop = new Loop(this.frame);
     this.restart();
@@ -66,134 +63,122 @@ export class Game {
 
   start(): void {
     // Compile every shader up front so the first frames don't stutter.
-    this.renderer.compile(this.scene, this.cameraRig.camera);
+    this.renderer.compile(this.scene, this.camera.camera);
     this.loop.start();
   }
 
-  /** Resets everything for a new round, which begins once the mouse is captured. */
+  /** Back to the platform at London Bridge, with a freshly generated line. */
   restart(): void {
     this.state.reset();
-    this.player.respawn(SPAWN.x, SPAWN.z);
-    this.cameraRig.reset();
-    this.candles.spawn(Math.random);
-    this.candles.update(0, 0, this.player.position, false);
-    this.ghosts.spawn();
-    this.ghosts.update(0, 0, this.player.position, false);
-    this.shrines.reset();
-    this.flare.reset();
-    this.hud.update(this.state, this.flare.fuel);
-    this.cameraRig.update(0, this.player.position, this.world.cameraBlockers);
-    this.world.update(this.cameraRig.camera);
+    this.paused = false;
+    this.lastJoint = 0;
+    this.milestones.clear();
+    this.hud.clearToast();
+    this.course.reset(Math.random);
+    this.course.update(0);
+    this.runner.reset();
+    this.world.reset();
+    this.camera.snap();
+    this.simulate(0, 0);
   }
 
-  /** Starts the clock. Ghosts that drifted close during the title screen scatter first. */
-  beginRound(): void {
-    this.state.begin();
-    this.ghosts.repel(this.player.position, GHOST.minSpawnDistance, 0, GHOST.retreatTime);
+  /** Start, resume, or run again: a click on a screen, or Space/Enter. */
+  play(restart = false): void {
+    if (restart || this.state.isOver) this.restart();
+    if (this.state.status === 'ready') {
+      this.state.begin();
+      this.sound.whistle();
+    }
+    this.paused = false;
+    this.input.endFrame(); // swallow the key that started the run so it doesn't also jump
+  }
+
+  /** Pauses a run in progress (Esc, P, or leaving the window). */
+  pause(): void {
+    if (this.state.status === 'playing') this.paused = true;
   }
 
   private readonly frame = (dt: number, elapsed: number): void => {
-    const locked = this.input.pointerLocked;
-    if (locked && this.state.status === 'ready') this.beginRound();
-    // Only a round in progress pauses when the mouse is released; the title and end screens stay alive.
-    if (locked || this.state.status !== 'playing') this.simulate(dt, elapsed);
-    if (this.input.wasPressed('KeyM')) this.sound.toggleMute();
-
-    const captured = locked || performance.now() - this.lockRequestedAt < LOCK_GRACE_MS;
-    this.screens.update(this.state, captured, this.sound.isMuted);
+    this.handleMenuKeys();
+    if (!this.paused) this.simulate(dt, elapsed);
+    this.screens.update(this.state, this.paused, this.sound.isMuted);
     this.hud.setVisible(this.state.status !== 'ready');
-    this.renderer.render(this.scene, this.cameraRig.camera);
+    document.body.classList.toggle('running', this.state.status === 'playing' && !this.paused);
+    this.renderer.render(this.scene, this.camera.camera);
     this.fps.tick(dt);
     this.input.endFrame();
   };
 
-  /** Advances the game one step. Public so dev tools can drive it without pointer lock. */
-  simulate(dt: number, elapsed: number): void {
-    const { dx, dy } = this.input.consumeMouseDelta();
-    this.cameraRig.rotate(dx, dy);
-
+  /** Pause, mute, and Space/Enter (or R at the end) to start or run again. */
+  private handleMenuKeys(): void {
+    const input = this.input;
+    if (input.wasPressed('KeyM')) this.sound.toggleMute();
+    const go = input.wasPressed('Space', 'Enter');
     if (this.state.status === 'playing') {
-      this.play(dt, elapsed);
+      if (input.wasPressed('Escape', 'KeyP')) {
+        if (this.paused) this.play();
+        else this.pause();
+      } else if (this.paused && go) {
+        this.play();
+      }
+    } else if (go || (this.state.isOver && input.wasPressed('KeyR'))) {
+      this.play();
+    }
+  }
+
+  /** Advances the game one step. Public so dev tools can drive it. */
+  simulate(dt: number, elapsed: number): void {
+    const state = this.state;
+    if (state.status === 'playing') {
+      state.advance(dt);
+      this.course.update(state.distance);
+      const events = this.runner.run(dt, elapsed, this.input.actions(), state.distance, state.speed, this.course);
+      this.playSounds(events);
+      if (events.crashed) {
+        state.crash(events.crashed);
+        this.sound.crash(events.crashed);
+        this.hud.flashCrash();
+      } else if (state.isOver) {
+        this.sound.arrive(); // advance() ended the run by reaching the station
+      } else {
+        this.announceMilestones();
+      }
     } else {
-      this.flare.update(dt, false, this.player.lantern);
-      this.player.update(dt, elapsed, 0, this.cameraRig.yaw, this.world);
-      this.candles.update(dt, elapsed, this.player.position, false);
-      this.ghosts.update(dt, elapsed, this.player.position, false);
-      this.shrines.update(dt, elapsed, this.player.position, false);
-      const again = this.input.wasPressed('KeyR') || this.input.wasPressed('Mouse0');
-      if (this.state.isOver && again) this.requestPlay(true);
+      this.runner.idle(dt, elapsed);
     }
-
-    this.cameraRig.update(dt, this.player.position, this.world.cameraBlockers);
-    this.world.update(this.cameraRig.camera);
-    this.hud.update(this.state, this.flare.fuel);
+    this.camera.update(dt, this.runner.position, state.pace);
+    this.world.update(dt, this.camera.camera, state.distance, this.course);
+    this.hud.update(state);
   }
 
-  /** One step of a round in progress. */
-  private play(dt: number, elapsed: number): void {
-    if (this.input.wasPressed('Space')) this.fireFlare();
-    this.flare.update(dt, true, this.player.lantern);
-    // A/D turn the player and camera together; W/S walk along that facing.
-    const move = this.input.moveAxis();
-    this.cameraRig.turn(move.x, dt);
-    this.player.update(dt, elapsed, move.y, this.cameraRig.yaw, this.world);
-
-    const gathered = this.candles.update(dt, elapsed, this.player.position, true);
-    for (let i = 0; i < gathered; i++) {
-      this.state.collect();
-      this.sound.candle(this.state.score);
-    }
-    if (gathered > 0) this.hud.pulseSouls();
-
-    const wantsOil = this.flare.fuel <= FLARE.maxFuel - SHRINE.minRefill;
-    if (this.shrines.update(dt, elapsed, this.player.position, wantsOil)) {
-      this.flare.refill();
-      this.hud.pulseFuel();
-      this.sound.refill();
-    }
-
-    this.handleGhosts(dt, elapsed);
-    this.state.tick(dt);
-    this.sound.clock(this.state.timeLeft, this.state.isWarning);
-    if (this.state.isOver) this.sound.roundEnd(this.state.status);
+  /** Short toasts under the route bar as the run passes its milestones. */
+  private announceMilestones(): void {
+    const state = this.state;
+    const once = (id: string, reached: boolean, text: string): void => {
+      if (!reached || this.milestones.has(id)) return;
+      this.milestones.add(id);
+      this.hud.toast(text);
+    };
+    once('half', state.progress >= 0.5, `Halfway to ${ROUTE.to}`);
+    once('sight', state.remaining <= 250, `${ROUTE.to} in sight!`);
+    once('best', state.isNewBest, 'New best run!');
   }
 
-  private fireFlare(): void {
-    const result = this.flare.trigger(this.player.position);
-    if (result === 'fired') {
-      this.ghosts.repel(this.player.position, FLARE.radius, FLARE.push, FLARE.scareTime);
-      this.sound.flare();
-    } else if (result === 'empty') {
-      this.hud.denyFlare();
-      this.sound.fizzle();
+  private playSounds(events: RunnerEvents): void {
+    if (events.jumped) this.sound.jump();
+    if (events.landed) this.sound.land();
+    if (events.slid) this.sound.slide();
+    if (events.switched) this.sound.lane();
+    // A clack at every carriage coupling the runner passes over.
+    const joint = Math.floor(this.state.distance / TRAIN.blockLength);
+    if (joint !== this.lastJoint) {
+      this.lastJoint = joint;
+      this.sound.clack(this.state.pace);
     }
-  }
-
-  /** Moves the ghosts; a touch costs a life unless the player is still blinking. */
-  private handleGhosts(dt: number, elapsed: number): void {
-    const toucher = this.ghosts.update(dt, elapsed, this.player.position, this.state.status === 'playing');
-    const spotter = this.ghosts.spotted[0];
-    if (spotter) this.sound.wail(stereoPan(this.player.position, this.cameraRig.yaw, spotter));
-    if (!toucher) return;
-    // Any touch sends the ghost fleeing, so it can't sit on the player until the grace period ends.
-    this.ghosts.scare(toucher);
-    if (!this.player.canBeHurt) return;
-    this.player.hurt(toucher.x, toucher.z);
-    this.state.loseLife();
-    this.hud.flashHurt();
-    this.sound.hurt();
-  }
-
-  /** A click on a screen (or R once a round is over): optionally restart, then capture the mouse. */
-  private requestPlay(restart: boolean): void {
-    if (restart) this.restart();
-    if (this.input.pointerLocked) return;
-    this.lockRequestedAt = performance.now();
-    this.input.requestPointerLock();
   }
 
   private readonly onResize = (): void => {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.cameraRig.setAspect(window.innerWidth / window.innerHeight);
+    this.camera.setAspect(window.innerWidth / window.innerHeight);
   };
 }

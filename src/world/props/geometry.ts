@@ -1,5 +1,15 @@
-import { type BufferGeometry, type Color, InstancedMesh, type Material, Object3D } from 'three';
+import { type BufferGeometry, Color, Float32BufferAttribute, InstancedMesh, type Material, Object3D } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/** Gives every vertex of `geo` the same vertex colour (for single-material merged props). */
+export function paint<T extends BufferGeometry>(geo: T, color: number | Color): T {
+  const c = color instanceof Color ? color : new Color(color);
+  const count = geo.attributes.position?.count ?? 0;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) c.toArray(colors, i * 3);
+  geo.setAttribute('color', new Float32BufferAttribute(colors, 3));
+  return geo;
+}
 
 /** Where and how to place one instance of a prop. */
 export interface Placement {

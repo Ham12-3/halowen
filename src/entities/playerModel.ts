@@ -22,10 +22,7 @@ export interface PlayerModel {
   meshes: Mesh[];
 }
 
-/**
- * A blob shadow. The moon's shadow map is only drawn once (see game/renderer.ts),
- * so anything that moves fakes its shadow like this instead.
- */
+/** A blob shadow: the game has no shadow maps, so the runner fakes its shadow with this. */
 function createBlobShadow(): Mesh {
   const material = new MeshBasicMaterial({
     color: 0x000000,
