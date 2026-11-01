@@ -29,6 +29,11 @@ export class Player {
     return this.root.position;
   }
 
+  respawn(x: number, z: number): void {
+    this.position.set(x, 0, z);
+    this.velocity.set(0, 0, 0);
+  }
+
   update(dt: number, elapsed: number, move: MoveAxis, yaw: number, world: World): void {
     this.root.rotation.y = yaw;
 

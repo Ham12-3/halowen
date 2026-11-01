@@ -31,8 +31,9 @@ npm run preview    # serve the production build
 src/
   main.ts                 entry point; exposes `window.game` in dev only
   style.css               overlay / HUD styles
-  game/                   loop, input, camera, config (state/timer/score come in Phase 2)
-    Game.ts               owns renderer + scene, wires world/player/camera/input
+  game/                   loop, input, camera, round state, config
+    Game.ts               owns renderer + scene; frame() renders, simulate() advances play
+    GameState.ts          score, countdown, round status (playing / won / timeUp)
     Loop.ts               rAF loop with clamped delta
     Input.ts              keyboard state + pointer-locked mouse look
     ThirdPersonCamera.ts  camera locked behind the player, pulls in before tall obstacles
@@ -48,9 +49,15 @@ src/
     collision.ts          circle/box colliders, resolveCircle, overlapsAny
     rng.ts                seeded PRNG + value noise
     props/                geometry builders (tombstones, trees, fence, pumpkins,
-                          crypt, houses, church, stained glass)
-  entities/               Player, playerModel, Lantern (ghost/candle/shrine later)
-  ui/                     LockPrompt, FpsMeter (HUD + screens come in later phases)
+                          crypt, houses, church, stained glass, glow texture)
+  entities/
+    Player.ts, playerModel.ts, Lantern.ts
+    Candles.ts            the round's soul candles: spawn, bob, pickup, light pool
+    candleModel.ts        candle/flame geometry and materials
+  ui/
+    Hud.ts                souls counter, midnight countdown, end-of-round banner
+    LockPrompt.ts         click-to-play overlay (shown while paused)
+    FpsMeter.ts           dev frame-rate / draw-call meter
 ```
 
 ## Conventions
@@ -59,7 +66,12 @@ src/
   crypt and church are to the north. The churchyard spans `±WORLD.halfSize`.
 - **Facing:** characters face -Z in local space; tombstones, houses and the church
   have their fronts on +Z. Camera yaw 0 looks down -Z; turning right decreases yaw.
-- **Tuning** lives in `src/game/config.ts`, not scattered through entity code.
+- **Tuning** lives in `src/game/config.ts` (`ROUND` for candle count and time
+  limit, `CANDLE` for pickup reach, spacing and glow), not in entity code.
+- **Pause:** the game only simulates while the mouse is captured; releasing it
+  (Esc) shows the overlay and freezes the timer. `frame()` always renders.
+- **Round flow:** collect all candles = `won`; timer hits 0 = `timeUp`. Either
+  shows the HUD banner; R restarts with freshly scattered candles.
 - **Procedural layout** is seeded (`WORLD.seed`), so the map is identical every run.
 - **Performance target:** 60 fps on a mid-range laptop. Use `InstancedMesh` (see
   `props/geometry.ts` `instance()` and `mergeParts()`) for anything repeated. Keep
@@ -72,14 +84,18 @@ src/
 - Click the page to capture the mouse (pointer lock); Esc releases it.
 - Backquote (`) toggles the FPS / draw-call / triangle meter.
 - In dev, `window.game` exposes the running game for console poking, e.g.
-  `game.player.position.set(0, 0, -10)` or `game.cameraRig.yaw = Math.PI`.
+  `game.player.respawn(0, -10)`, `game.cameraRig.yaw = Math.PI`, `game.state.timeLeft = 5`.
+- The automated browser pane cannot capture the mouse, so the game stays paused
+  there. Drive it by stepping manually, mirroring the real frame loop:
+  `game.simulate(1 / 60, t); game.input.endFrame();` (skipping `endFrame` leaves
+  "pressed this frame" keys set across steps).
 - After each phase: run `npm run typecheck`, start the dev server, and check the
   browser console for errors.
 
 ## Build phases
 
 1. **Done:** scene, fog, lighting, churchyard + French old town, player movement, camera follow
-2. Candles to collect, score, timer, HUD
+2. **Done:** soul candles to collect, score, midnight timer, HUD, win/time-up banner, R to restart
 3. Ghost AI (wander, chase when close), lives, game over
 4. Lantern flare and shrines, start/pause/win screens, sound
 5. Polish (particles, ghost glow, screen shake, difficulty tuning)

@@ -14,6 +14,26 @@ export const PLAYER = {
   acceleration: 14,
 } as const;
 
+export const ROUND = {
+  candles: 10,
+  /** Seconds until the church bell tolls midnight. */
+  timeLimit: 180,
+  /** The timer turns red and pulses below this many seconds. */
+  warningTime: 30,
+} as const;
+
+export const CANDLE = {
+  /** Reach beyond the player's radius for picking a candle up. */
+  pickupRadius: 0.6,
+  hoverHeight: 0.5,
+  /** Candles try to keep at least this far apart (relaxed if the map is crowded). */
+  minSpacing: 11,
+  minSpawnDistance: 10,
+  /** Point lights are lent to the nearest candles; this is their full brightness. */
+  lightIntensity: 5,
+  lightRange: 9,
+} as const;
+
 export const CAMERA = {
   fov: 60,
   near: 0.1,

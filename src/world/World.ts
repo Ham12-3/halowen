@@ -1,7 +1,7 @@
 import type { Camera, Group, Scene } from 'three';
 import { WORLD } from '../game/config';
 import { createAtmosphere } from './atmosphere';
-import { type Collider, resolveCircle, type XZ } from './collision';
+import { type Collider, overlapsAny, resolveCircle, type XZ } from './collision';
 import { generateGraveyard } from './graveyard';
 import { createGround } from './ground';
 import { createLighting } from './lighting';
@@ -45,6 +45,12 @@ export class World {
     scene.add(church);
     this.colliders.push(...statics, ...layout.colliders);
     this.cameraBlockers.push(...crypt.colliders);
+  }
+
+  /** True if a circle at (x, z) is inside the fence and clear of every collider. */
+  isOpen(x: number, z: number, radius: number): boolean {
+    const limit = WORLD.halfSize - 1 - radius;
+    return Math.abs(x) < limit && Math.abs(z) < limit && !overlapsAny(x, z, radius, this.colliders);
   }
 
   /** Pushes a circle out of all static geometry. Mutates `position`; returns true on contact. */
