@@ -114,6 +114,48 @@ export const SOUL = {
   streakWindow: 1.2,
 } as const;
 
+export const LIVES = {
+  count: 3,
+  /** Seconds of blinking safety after losing a life (obstacles and ghosts pass through you). */
+  invulnerability: 2,
+  /** Share of your speed kept after a stumble. */
+  stumbleSpeed: 0.7,
+} as const;
+
+/** Ghosts floating in the lanes: too tall to jump, too low to slide under. Dodge them. */
+export const GHOST = {
+  /** No ghosts before this distance, to let the player settle in. */
+  firstAt: 350,
+  /** Chance per block of a ghost, at the start and at full difficulty. */
+  chance: [0.07, 0.22],
+  /** Share of ghosts that swoop into a neighbouring lane as you approach. */
+  swoopShare: 0.45,
+  /** A swoop starts when the runner is this far from the ghost and takes this much of their travel. */
+  swoopLead: 34,
+  swoopLength: 10,
+  hover: 0.3,
+  /** Collision box: the sheet spans from `hover` to `hover + height` above the roof. */
+  height: 1.6,
+  halfWidth: 0.55,
+  halfDepth: 0.45,
+  /** Points for each ghost the lantern flare banishes. */
+  banishValue: 50,
+} as const;
+
+/** The lantern flare power-up: grab a floating lantern and it blazes for a while. */
+export const FLARE = {
+  /** Roughly how far apart lantern pickups are (metres). */
+  spacing: 520,
+  /** Seconds the flare burns once picked up. */
+  duration: 8,
+  /** Ghosts up to this far ahead are banished while it burns. */
+  reach: 24,
+  /** Souls in any lane within this distance fly to you while it burns. */
+  magnet: 4,
+  /** Height of a lantern pickup above the roof. */
+  height: 1.0,
+} as const;
+
 export const CAMERA = {
   fov: 62,
   /** The field of view widens towards this at top speed, for a sense of pace. */

@@ -1,11 +1,11 @@
-import { ROUTE, RUN, SOUL } from './config';
+import { FLARE, GHOST, LIVES, ROUTE, RUN, SOUL } from './config';
 import { FINISH, type Station, STATIONS, speedCapAt, stageAt, TOP_SPEED } from './route';
 
 /** `ready` = title screen; `crashed` and `arrived` (at the last station) end the run. */
 export type RunStatus = 'ready' | 'playing' | 'crashed' | 'arrived';
 
-/** What ended a run in a crash. */
-export type CrashCause = 'fell' | 'hurdle' | 'bar';
+/** What cost a life (and, for the last life, ended the run). */
+export type CrashCause = 'fell' | 'hurdle' | 'bar' | 'ghost';
 
 const BEST_KEY = 'midnight-line-best-score';
 
@@ -26,6 +26,12 @@ export class GameState {
   souls = 0;
   /** Stations reached after the first, each worth a bonus. */
   stationsReached = 0;
+  lives: number = LIVES.count;
+  /** Seconds left on the lantern flare (0 when it isn't burning). */
+  flareLeft = 0;
+  /** Ghosts banished by the flare. */
+  banished = 0;
+  /** What cost the last life (or ended the run). */
   cause: CrashCause | null = null;
   /** Best score ever (remembered between visits). */
   best = readBest();
@@ -39,8 +45,15 @@ export class GameState {
     this.time = 0;
     this.souls = 0;
     this.stationsReached = 0;
+    this.lives = LIVES.count;
+    this.flareLeft = 0;
+    this.banished = 0;
     this.cause = null;
     this.previousBest = this.best;
+  }
+
+  get flaring(): boolean {
+    return this.flareLeft > 0;
   }
 
   begin(): void {
@@ -51,9 +64,14 @@ export class GameState {
     return this.status === 'crashed' || this.status === 'arrived';
   }
 
-  /** A metre run is a point, each soul SOUL.value, each station reached a bonus. */
+  /** A metre run is a point, plus souls, station bonuses and ghosts banished. */
   get score(): number {
-    return Math.floor(this.distance) + this.souls * SOUL.value + this.stationsReached * ROUTE.stationBonus;
+    return (
+      Math.floor(this.distance) +
+      this.souls * SOUL.value +
+      this.stationsReached * ROUTE.stationBonus +
+      this.banished * GHOST.banishValue
+    );
   }
 
   /** This run beat the best score from before it (not counting the very first run). */
@@ -92,6 +110,7 @@ export class GameState {
     this.speed = Math.min(speedCapAt(this.distance), this.speed + RUN.acceleration * dt);
     this.distance = Math.min(FINISH, this.distance + this.speed * dt);
     this.time += dt;
+    this.flareLeft = Math.max(0, this.flareLeft - dt);
     const reached = STATIONS.find((s) => s.at > before && s.at <= this.distance) ?? null;
     if (reached) {
       this.stationsReached++;
@@ -104,10 +123,25 @@ export class GameState {
     if (this.status === 'playing') this.souls += souls;
   }
 
-  crash(cause: CrashCause): void {
-    if (this.status !== 'playing') return;
+  startFlare(): void {
+    if (this.status === 'playing') this.flareLeft = FLARE.duration;
+  }
+
+  banish(ghosts: number): void {
+    if (this.status === 'playing') this.banished += ghosts;
+  }
+
+  /** Costs a life and slows you down; the last life ends the run. Returns true if the run is over. */
+  loseLife(cause: CrashCause): boolean {
+    if (this.status !== 'playing') return false;
     this.cause = cause;
+    this.lives = Math.max(0, this.lives - 1);
+    if (this.lives > 0) {
+      this.speed = Math.max(RUN.startSpeed, this.speed * LIVES.stumbleSpeed);
+      return false;
+    }
     this.finish('crashed');
+    return true;
   }
 
   private finish(status: RunStatus): void {

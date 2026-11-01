@@ -1,12 +1,13 @@
 import { type CrashCause, formatDistance, formatScore, formatTime, type GameState } from '../game/GameState';
 import { FINISH, STAGE_COUNT, STATIONS } from '../game/route';
+import { LIVES } from '../game/config';
 import {
   CRASH_ICON,
+  GHOST_ICON,
   LANES_ICON,
+  LANTERN_ICON,
   PUMPKIN_ICON,
   ROUNDEL_ICON,
-  SIGNAL_ICON,
-  SOUL_ICON,
   SOUND_OFF_ICON,
   SOUND_ON_ICON,
 } from './icons';
@@ -28,6 +29,7 @@ const CRASHES: Record<CrashCause, [string, string]> = {
   fell: ['Off the rails!', 'You fell onto the tracks'],
   hurdle: ['Tripped on the pumpkins!', 'You went flying over a pile of jack-o’-lanterns'],
   bar: ['Hit the signal!', 'You ran head first into the ironwork'],
+  ghost: ['The spirits claim you…', 'A ghost swept you off the line'],
 };
 
 /** The whole line as an Underground strip map: roundels joined by red line, each stage's length on it. */
@@ -55,9 +57,9 @@ function startView(state: GameState): string {
       ${lineMap()}
       <ul class="how-to">
         ${tip(LANES_ICON, 'Switch lanes', 'Hop tracks before your train runs out.', ['A', 'D'])}
-        ${tip(PUMPKIN_ICON, 'Jump', 'Leap gaps and jack-o’-lantern piles.', ['W', 'Space'])}
-        ${tip(SIGNAL_ICON, 'Slide', 'Duck under signals and bridges.', ['S'])}
-        ${tip(SOUL_ICON, 'Gather souls', 'Run, jump or slide through the wisps.', [])}
+        ${tip(PUMPKIN_ICON, 'Jump & slide', 'Leap gaps and pumpkins; duck under signals and bridges.', ['W', 'S'])}
+        ${tip(GHOST_ICON, 'Dodge ghosts', `Red eyes mean it's swooping your way. ${LIVES.count} lives.`, [])}
+        ${tip(LANTERN_ICON, 'Grab lanterns', 'The flare banishes ghosts and pulls souls to you.', [])}
       </ul>
       <button type="button" class="btn btn-primary" data-action="play">Start running</button>
       <p class="hint">or press <kbd>Space</kbd> &middot; <kbd>Esc</kbd> pause &middot; <kbd>M</kbd> sound</p>
@@ -85,6 +87,7 @@ function pauseView(state: GameState, muted: boolean): string {
       ${statTiles([
         ['Score', formatScore(state.score)],
         ['Souls', String(state.souls)],
+        ['Lives', String(state.lives)],
         [`To ${state.nextStation.name}`, formatDistance(state.toNext)],
       ])}
       <div class="actions">
@@ -155,7 +158,8 @@ export class Screens {
   update(state: GameState, paused: boolean, muted: boolean): void {
     const view: ScreenView | null =
       state.status === 'ready' ? 'start' : state.isOver ? 'end' : paused ? 'pause' : null;
-    const key = view ? `${view}:${state.status}:${muted}` : '';
+    // The key covers everything a screen shows that can differ between two runs' end screens.
+    const key = view ? `${view}:${state.status}:${state.cause}:${state.score}:${muted}` : '';
     if (key === this.key) return;
     this.key = key;
     this.el.className = view ? `screen ${view} ${state.status}` : 'screen hidden';

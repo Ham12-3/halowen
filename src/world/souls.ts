@@ -1,5 +1,6 @@
-import { SOUL, TRAIN } from '../game/config';
-import type { Obstacle } from './course';
+import { RUN, SOUL, TRAIN } from '../game/config';
+import type { Course, Obstacle } from './course';
+import { laneX } from './lanes';
 import type { Rng } from './rng';
 
 export interface Soul {
@@ -36,4 +37,25 @@ export function placeSouls(start: number, roof: readonly boolean[], obstacles: r
     const height = !obstacle ? SOUL.height : obstacle.kind === 'bar' ? SOUL.lowHeight : arcHeight(offset);
     return { lane, at: centre + offset, height, taken: false };
   });
+}
+
+/**
+ * Gathers the souls the runner is passing through: same lane, within reach
+ * along the track, and between their feet and head (heights above the roof).
+ * With `magnet` (the lantern flare), souls in any lane within `magnet` metres fly in.
+ */
+export function gatherSouls(course: Course, x: number, feet: number, head: number, at: number, magnet = 0): number {
+  let count = 0;
+  for (const soul of course.blocksNear(at, TRAIN.blockLength).flatMap((b) => b.souls)) {
+    if (soul.taken) continue;
+    const pulled = magnet > 0 && Math.abs(soul.at - at) < magnet;
+    if (!pulled) {
+      if (Math.abs(soul.at - at) > 0.75) continue;
+      if (Math.abs(x - laneX(soul.lane)) > RUN.halfWidth + SOUL.reach) continue;
+      if (soul.height < feet - 0.3 || soul.height > head + 0.2) continue;
+    }
+    soul.taken = true;
+    count++;
+  }
+  return count;
 }

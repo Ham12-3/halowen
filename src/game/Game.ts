@@ -5,9 +5,12 @@ import { FpsMeter } from '../ui/FpsMeter';
 import { Hud } from '../ui/Hud';
 import { Screens } from '../ui/Screens';
 import { Course } from '../world/course';
+import { banishGhosts } from '../world/hazards';
 import { World } from '../world/World';
 import { ChaseCamera } from './ChaseCamera';
-import { GameState } from './GameState';
+import { FLARE } from './config';
+import { checkContacts } from './contacts';
+import { type CrashCause, GameState } from './GameState';
 import { Input } from './Input';
 import { Loop } from './Loop';
 import { createRenderer } from './renderer';
@@ -129,22 +132,42 @@ export class Game {
       const station = state.advance(dt);
       this.course.update(state.distance);
       const events = this.runner.run(dt, elapsed, this.input.actions(), state.distance, state.speed, this.course);
-      const souls = events.crashed ? 0 : this.runner.collectSouls(this.course, state.distance);
-      state.collect(souls);
-      if (events.crashed) {
-        state.crash(events.crashed);
-        this.feedback.crashed(events.crashed);
-      } else if (state.isOver) {
-        this.feedback.arrived(); // advance() ended the run at the last station
-      } else {
-        this.feedback.step(events, souls, station, state);
+      const contacts = checkContacts(this.runner, this.course, state.distance, state.flaring);
+      state.collect(contacts.souls);
+      if (contacts.lanterns > 0) {
+        state.startFlare();
+        this.feedback.flare();
       }
+      if (state.flaring) {
+        const banished = banishGhosts(this.course, state.distance, FLARE.reach);
+        state.banish(banished);
+        if (banished > 0) this.feedback.banished();
+      }
+      // The flare blazes the lantern while it burns.
+      this.runner.lantern.flash = state.flaring ? 0.3 + Math.sin(elapsed * 9) * 0.06 : 0;
+
+      const hit = events.fell ? 'fell' : contacts.hit;
+      if (state.isOver) this.feedback.arrived(); // advance() ended the run at the last station
+      else if (hit) this.loseLife(hit);
+      else this.feedback.step(events, contacts.souls, station, state, this.course, this.runner.position.x);
     } else {
       this.runner.idle(dt, elapsed);
     }
     this.camera.update(dt, this.runner.position, state.pace);
     this.world.update(dt, elapsed, this.camera.camera, state.distance, this.course);
     this.hud.update(state);
+  }
+
+  /** A hit costs a life (you blink, slow down, and get put back on a roof if you fell); the last one ends the run. */
+  private loseLife(cause: CrashCause): void {
+    const fell = cause === 'fell';
+    if (this.state.loseLife(cause)) {
+      this.runner.knockOut(fell);
+      this.feedback.crashed(cause);
+      return;
+    }
+    this.runner.recover(fell, this.course, this.state.distance);
+    this.feedback.hurt(cause, this.state.lives);
   }
 
   private readonly onResize = (): void => {

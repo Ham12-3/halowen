@@ -1,5 +1,6 @@
 import type { CrashCause } from '../game/GameState';
 import { startAmbience } from './ambience';
+import * as hazard from './hazardSounds';
 import { bell, noiseBurst, tone } from './synth';
 
 const VOLUME = 0.7;
@@ -109,6 +110,7 @@ export class Sound {
       noiseBurst(ctx, out, { filter: 'lowpass', freq: 1400, to: 150, decay: 0.5, gain: 0.45 });
       if (cause === 'bar') bell(ctx, out, 220, 0, 0.08); // ringing ironwork
       if (cause === 'fell') noiseBurst(ctx, out, { filter: 'lowpass', freq: 600, at: 0.35, decay: 0.3, gain: 0.4 });
+      if (cause === 'ghost') hazard.wail(ctx, out, 0);
     });
   }
 
@@ -129,6 +131,23 @@ export class Sound {
       tone(ctx, out, { freq: 523.25, at: 0.38, decay: 1.1, gain: 0.14 });
       bell(ctx, out, 392, 0.05, 0.06);
     });
+  }
+
+  /** A swooping ghost's wail, panned towards it (-1 left .. 1 right). */
+  wail(pan: number): void {
+    this.play((ctx, out) => hazard.wail(ctx, out, pan));
+  }
+
+  hurt(): void {
+    this.play(hazard.hurt);
+  }
+
+  flare(): void {
+    this.play(hazard.flare);
+  }
+
+  banish(): void {
+    this.play(hazard.banish);
   }
 
   /** The end of the line: a rising fanfare and the station bell. */

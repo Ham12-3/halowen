@@ -1,13 +1,14 @@
-import { Group, MathUtils, type Mesh, type Vector3 } from 'three';
-import { LANES, OBSTACLE, RUN, TRAIN } from '../game/config';
-import type { CrashCause } from '../game/GameState';
+import { Group, type Mesh, type Vector3 } from 'three';
+import { LANES, LIVES, OBSTACLE, RUN, TRAIN } from '../game/config';
 import type { RunInput } from '../game/Input';
 import { type Course, laneX, nearestLane } from '../world/course';
 import { Lantern } from './Lantern';
 import { createPlayerModel } from './playerModel';
+import { RunnerPose } from './runnerPose';
 
 const ROOF = TRAIN.roofHeight;
 const MIDDLE_LANE = Math.floor(LANES.count / 2);
+const BLINKS_PER_SECOND = 10;
 
 /** What happened during one step, for sound and HUD feedback. */
 export interface RunnerEvents {
@@ -15,18 +16,28 @@ export interface RunnerEvents {
   landed: boolean;
   slid: boolean;
   switched: boolean;
-  crashed: CrashCause | null;
+  /** Dropped too far below the roofs: off the train and onto the tracks. */
+  fell: boolean;
+}
+
+/** The runner's body for contact tests: world x, and feet/head heights above the roof. */
+export interface Body {
+  x: number;
+  feet: number;
+  head: number;
 }
 
 /**
- * The hooded lantern bearer running along the train roofs. Handles lanes,
- * jumping, sliding, landing and falling; the course says where the roofs and
- * obstacles are. Faces -Z, the way the line runs.
+ * The hooded lantern bearer running along the train roofs: lanes, jumping,
+ * sliding, landing and falling, plus the blink after losing a life and the
+ * fall when the run ends. Contacts with obstacles and ghosts live in game/contacts.
  */
 export class Runner {
   readonly root = new Group();
   readonly lantern = new Lantern();
   lane = MIDDLE_LANE;
+  /** Seconds of blinking safety left after losing a life. */
+  invulnerable = 0;
   private vy = 0;
   private grounded = true;
   /** Airborne because of a jump (not just stepping across an empty lane). */
@@ -35,17 +46,18 @@ export class Runner {
   private overRoof = true;
   private slideLeft = 0;
   private slideQueued = false;
-  private crash: CrashCause | null = null;
-  private runPhase = 0;
-  private readonly body: Group;
-  private readonly shadow: Mesh;
+  /** The run is over: lie where you fell (or keep dropping onto the rails). */
+  private knockedOut = false;
+  private falling = false;
+  private readonly pose: RunnerPose;
+  private readonly meshes: Mesh[];
 
   constructor() {
     const model = createPlayerModel();
-    this.body = model.body;
-    this.shadow = model.shadow;
+    this.pose = new RunnerPose(model.body, this.lantern, model.shadow);
+    this.meshes = model.meshes;
     model.hand.add(this.lantern.group);
-    this.root.add(this.body, this.shadow);
+    this.root.add(model.body, model.shadow);
     this.reset();
   }
 
@@ -57,6 +69,12 @@ export class Runner {
     return this.slideLeft > 0;
   }
 
+  /** Feet and head heights above the roof, for contacts. */
+  get body(): Body {
+    const feet = this.root.position.y - ROOF;
+    return { x: this.root.position.x, feet, head: feet + (this.sliding ? RUN.slideHeight : RUN.height) };
+  }
+
   reset(): void {
     this.lane = MIDDLE_LANE;
     this.root.position.set(laneX(this.lane), ROOF, 0);
@@ -66,14 +84,16 @@ export class Runner {
     this.overRoof = true;
     this.slideLeft = 0;
     this.slideQueued = false;
-    this.crash = null;
-    this.body.position.set(0, 0, 0);
-    this.body.rotation.set(0, 0, 0);
+    this.invulnerable = 0;
+    this.knockedOut = false;
+    this.falling = false;
+    this.pose.reset();
+    this.setVisible(true);
   }
 
   /** One step of running, `distance` metres along the route at `speed`. */
   run(dt: number, elapsed: number, input: RunInput, distance: number, speed: number, course: Course): RunnerEvents {
-    const ev: RunnerEvents = { jumped: false, landed: false, slid: false, switched: false, crashed: null };
+    const ev: RunnerEvents = { jumped: false, landed: false, slid: false, switched: false, fell: false };
     const p = this.root.position;
     p.z = -distance;
 
@@ -121,73 +141,63 @@ export class Runner {
         this.slideQueued = false;
       }
     }
+    ev.fell = p.y < ROOF - RUN.fallLimit;
 
-    ev.crashed = p.y < ROOF - RUN.fallLimit ? 'fell' : this.hitObstacle(course, distance);
-    this.crash = ev.crashed;
+    if (this.invulnerable > 0) {
+      this.invulnerable = Math.max(0, this.invulnerable - dt);
+      this.setVisible(this.invulnerable === 0 || Math.floor(this.invulnerable * BLINKS_PER_SECOND) % 2 === 0);
+    }
     this.animate(dt, elapsed, speed);
     return ev;
   }
 
-  /** A step while not running (title screen, after a crash or arriving): idle, or play out the crash. */
+  /** After losing a life: blink for a while, and if you fell, get lifted back onto the nearest roof. */
+  recover(fell: boolean, course: Course, distance: number): void {
+    this.invulnerable = LIVES.invulnerability;
+    if (!fell) return;
+    const candidates = [this.lane, this.lane - 1, this.lane + 1, this.lane - 2, this.lane + 2].filter((l) => l >= 0 && l < LANES.count);
+    this.lane =
+      candidates.find((l) => course.hasRoof(l, distance)) ?? candidates.find((l) => course.hasRoof(l, distance + 3)) ?? this.lane;
+    this.root.position.set(laneX(this.lane), ROOF, -distance);
+    this.vy = 0;
+    this.grounded = true;
+    this.jumping = false;
+    this.slideLeft = 0;
+  }
+
+  /** The run is over: pitch forward, or keep dropping onto the rails if you fell. */
+  knockOut(fell: boolean): void {
+    this.knockedOut = true;
+    this.falling = fell;
+    this.invulnerable = 0;
+    this.setVisible(true);
+  }
+
+  /** A step while not running (title screen, after the run ends): idle, or play out the fall. */
   idle(dt: number, elapsed: number): void {
-    if (this.crash === 'fell') {
-      // Keep falling until you hit the rails.
+    if (this.falling) {
       this.vy -= RUN.gravity * dt;
       this.root.position.y = Math.max(0.1, this.root.position.y + this.vy * dt);
     }
     this.animate(dt, elapsed, 0);
   }
 
-  /** Gathers the souls the runner is passing through this step (same lane, between feet and head). */
-  collectSouls(course: Course, distance: number): number {
-    const p = this.root.position;
-    const feet = p.y - ROOF;
-    return course.collectSouls(p.x, feet, feet + (this.sliding ? RUN.slideHeight : RUN.height), distance);
-  }
-
-  /** Hurdles must be jumped (feet above them); bars must be slid under (head below them). */
-  private hitObstacle(course: Course, distance: number): CrashCause | null {
-    const p = this.root.position;
-    const feet = p.y - ROOF;
-    const head = feet + (this.sliding ? RUN.slideHeight : RUN.height);
-    for (const o of course.obstaclesNear(distance, 2)) {
-      if (o.kind === 'gap') continue;
-      const hurdle = o.kind === 'hurdle';
-      const halfWidth = hurdle ? OBSTACLE.hurdleHalfWidth : OBSTACLE.barHalfWidth;
-      const halfDepth = hurdle ? OBSTACLE.hurdleHalfDepth : OBSTACLE.barHalfDepth;
-      if (Math.abs(p.x - laneX(o.lane)) > halfWidth + RUN.halfWidth) continue;
-      if (Math.abs(distance - o.at) > halfDepth + OBSTACLE.runnerHalfDepth) continue;
-      const hit = hurdle ? feet < OBSTACLE.hurdleHeight : head > OBSTACLE.barBottom && feet < OBSTACLE.barTop;
-      if (hit) return o.kind === 'hurdle' ? 'hurdle' : 'bar';
-    }
-    return null;
+  /** Hides only the figure (the lantern's light stays on, so the scene's light count never changes). */
+  private setVisible(visible: boolean): void {
+    for (const mesh of this.meshes) mesh.visible = visible;
   }
 
   private animate(dt: number, elapsed: number, speed: number): void {
-    const b = this.body;
     const p = this.root.position;
-    const ease = 1 - Math.exp(-14 * dt);
-    // Lean forward to run, tip back to slide, pitch forward when thrown by a crash.
-    let lean = -0.22 * Math.min(1, speed / 10);
-    if (this.crash) lean = -1.4;
-    else if (this.sliding) lean = 1.15;
-    else if (!this.grounded) lean = -0.1 + MathUtils.clamp(this.vy * 0.02, -0.25, 0.25);
-    b.rotation.x += (lean - b.rotation.x) * ease;
-    b.rotation.z = MathUtils.clamp((p.x - laneX(this.lane)) * 0.12, -0.3, 0.3);
-
-    this.runPhase += dt * speed * 0.9;
-    const striding = this.grounded && !this.sliding && !this.crash && speed > 0;
-    b.position.y = striding ? Math.abs(Math.sin(this.runPhase)) * 0.12 : 0;
-
-    const idle = Math.sin(elapsed * 1.7) * 0.05;
-    this.lantern.group.rotation.x = (striding ? Math.sin(this.runPhase * 2) * 0.3 : 0) + idle;
-    this.lantern.group.rotation.z = (striding ? Math.sin(this.runPhase) * 0.15 : 0) + idle * 0.6;
-    this.lantern.update(elapsed);
-
-    // The blob shadow stays on whatever is underneath: a roof, or the rails of an empty lane.
-    const ground = this.overRoof && p.y > ROOF - OBSTACLE.stepUp ? ROOF : 0;
-    const height = Math.max(0, p.y - ground);
-    this.shadow.position.y = ground - p.y + 0.02;
-    this.shadow.scale.setScalar(MathUtils.clamp(1 - height * 0.25, 0.35, 1));
+    this.pose.update(dt, elapsed, {
+      speed,
+      grounded: this.grounded,
+      sliding: this.sliding,
+      knockedOut: this.knockedOut,
+      vy: this.vy,
+      laneOffset: p.x - laneX(this.lane),
+      y: p.y,
+      overRoof: this.overRoof,
+    });
   }
 }

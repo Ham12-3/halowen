@@ -6,13 +6,16 @@ on a brick railway viaduct, at night, across London: London Bridge → Waterloo 
 Westminster → Tower Hill (three stages, 6.6 km), past the Shard, St Paul's, the
 London Eye, Big Ben and Parliament, and Tower Bridge, crossing the Thames twice.
 Three lanes: switch lanes before your train runs out, jump gaps and piles of
-jack-o'-lanterns, slide under signal boards and road bridges, and gather glowing
-soul wisps. Each station passed is a checkpoint (+500); reaching Tower Hill wins;
-one crash ends the run. Score = metres + 10 per soul + station bonuses.
+jack-o'-lanterns, slide under signal boards and road bridges, dodge ghosts
+(some swoop into the next lane, eyes burning red), and gather glowing soul wisps.
+Floating lanterns light a lantern flare that banishes ghosts and pulls souls in.
+Three lives: any hit or fall costs one (you blink, slow down, and are put back on a
+roof); the last one ends the run. Each station passed is a checkpoint (+500);
+reaching Tower Hill wins. Score = metres + 10 per soul + station bonuses + 50 per ghost banished.
 
 The previous game in this repo, **Pumpkin Hollow** (a free-roaming graveyard
-game), is preserved on the `phase-4-flare-shrines-sound` branch. Its ghost model
-(`src/entities/ghostModel.ts`) can be restored from there for Phase 3.
+game), is preserved on the `phase-4-flare-shrines-sound` branch; its ghost model
+(`src/entities/ghostModel.ts`) was brought back for the ghosts here.
 
 ## Tech stack
 
@@ -40,18 +43,23 @@ src/
   style.css               design tokens, screens, HUD (all colours/spacing are CSS variables)
   game/
     Game.ts               wires everything; frame() handles menu keys + renders, simulate() advances a run
-    GameState.ts          distance, speed, souls, score, stations reached, status, best score
+    GameState.ts          distance, speed, souls, lives, flare, score, stations reached, status, best score
     route.ts              stations/stages helpers: stageAt, stageEnds, speedCapAt, nearStation, overRiver
-    RunFeedback.ts        per-step sound + HUD feedback: clacks, soul streak chime, station toasts, milestones
+    contacts.ts           per step: obstacle/ghost hits (skipped while blinking), souls, lantern pickups
+    RunFeedback.ts        per-step sound + HUD feedback: clacks, soul chime, wails, hurt, flare, stations
     ChaseCamera.ts        camera behind the runner; eases sideways/up, locked along the track, FOV widens with pace
     Input.ts              keyboard only; actions() = this frame's left/right/jump/slide presses
     Loop.ts, renderer.ts  rAF loop with clamped delta; WebGLRenderer setup (no shadow maps)
     config.ts             ALL tuning: LANES, RUN, TRAIN, OBSTACLE, COURSE, ROUTE, SOUL, CAMERA, ATMOSPHERE
   world/
-    course.ts             block-by-block course generator + queries (hasRoof, obstaclesNear, collectSouls)
-    souls.ts              soul trail placement per block (line / low under bars / arc over hurdles and gaps)
+    course.ts             block-by-block course generator + queries (hasRoof, obstaclesNear, blocksNear)
+    lanes.ts              laneX / nearestLane
+    souls.ts              soul trails per block + gatherSouls (with the flare's magnet)
+    hazards.ts            ghost + lantern placement and queries (ghostX, swoops, banish, touch, pickups)
     CourseView.ts         instanced carriages, gap pieces, pumpkin hurdles, signal boards, bridges
     SoulsView.ts          instanced soul wisps + halos, animated every frame
+    GhostsView.ts         instanced ghosts (bodies, faces, halos); red eyes while swooping, fade when gone
+    PickupsView.ts        floating lantern pickups
     World.ts              owns sky, lights, viaduct, course + souls views, skyline, river, landmarks, stations
     viaduct.ts            ballast/rails/parapets/arches/street, shifted in 2-block steps
     skyline.ts            recycled London buildings (terraces, offices, towers) both sides
@@ -64,16 +72,20 @@ src/
                           train, obstacles, pumpkins, glow texture,
                           geometry helpers (box, solid, paint, mergeParts, instance)
   entities/
-    Runner.ts             lanes, jump, slam, slide, landing, falling, obstacle hits, poses
+    Runner.ts             lanes, jump, slam, slide, landing, falling, blink, recover, knock-out
+    runnerPose.ts         lean / stride / lantern swing / blob shadow animation
     playerModel.ts        hooded figure + blob shadow; Lantern.ts the lantern and its light
+    ghostModel.ts         bedsheet ghost geometry + translucent materials
   ui/
-    Hud.ts                score, souls, time; current stage as an Underground line; speed + pace bar; toasts
+    Hud.ts                score, souls, time; current stage as an Underground line; speed, lives,
+                          flare bar; toasts
     Screens.ts            title / pause / end overlays (picked each frame from status + paused)
     icons.ts              inline SVG icons (decorative, aria-hidden)
     FpsMeter.ts           dev frame-rate / draw-call meter (backquote toggles)
   audio/
     Sound.ts              whistle, clickety-clack, jump/land/slide/lane, soul chime, station chime,
                           crash, arrival; mute
+    hazardSounds.ts       ghost wail, hurt, flare, banish recipes
     synth.ts, ambience.ts tone/noise/bell building blocks; wind, drone and owl
 ```
 
@@ -99,6 +111,18 @@ src/
   obstacle. They are gathered when the runner's lane, feet-to-head span and
   distance overlap them (`course.collectSouls`). Gathered souls are flagged
   `taken`; `SoulsView` stops drawing them.
+- **Lives:** obstacle hits, ghost touches and falls all cost a life via `Game.loseLife()`.
+  With lives left you blink for `LIVES.invulnerability` (obstacles and ghosts pass
+  through), slow to `LIVES.stumbleSpeed`, and after a fall `Runner.recover()` lifts you
+  onto the nearest roofed lane. The last life calls `Runner.knockOut()` and ends the run.
+- **Ghosts** (`hazards.ts`): at most one per block, placed in a clear roofed lane only
+  once the next block exists, and only if another lane is roofed before, through and
+  after it (always a lane to hold). Swoopers glide from `lane` to `toLane` based on the
+  runner's distance (`ghostX`), starting `GHOST.swoopLead` m ahead. Too tall to jump,
+  too low to slide: dodge them. A ghost that touches you disperses (`goneAt`).
+- **Lantern flare:** a lantern pickup roughly every `FLARE.spacing` m; collecting one
+  burns the flare for `FLARE.duration` s: ghosts within `FLARE.reach` ahead are
+  banished (+50 each) and souls within `FLARE.magnet` m in any lane fly to you.
 - **Landmarks** are placed from `props/sites.ts` (`at` along the line, `x` sideways,
   within ~75 m of the track so they come into view ahead). `landmarkClear()` keeps
   the skyline off landmarks, stations, Parliament's frontage and the river.
@@ -144,7 +168,12 @@ src/
   `Sound.prototype.x.call({ play: (make) => make(ctx, out) })` and check peak/RMS.
 - Bot runs save a best score in localStorage (`midnight-line-best-score`); clear it afterwards.
 - A bot gets the whole 6.6 km only some of the time; stage 3 (26 m/s) is hard on purpose.
-  Re-check with the bot whenever `ROUTE.stageSpeeds` or `COURSE` change.
+  Re-check with the bot whenever `ROUTE.stageSpeeds` or `COURSE` change. A bot that
+  treats a lane as blocked when a live ghost will be in it (`toLane`) dodges nearly all
+  ghosts; most of its lost lives are falls from its own late lane changes.
+- The user may be playing in the browser pane between your calls, and the game keeps
+  running while the pane has focus. To stage a screenshot, set `game.paused = true`
+  first, then hide `.screen`; afterwards restore `.screen` and call `game.restart()`.
 - After each phase: run `npm run typecheck`, start the dev server, and check the browser console.
 
 ## Build phases
@@ -154,5 +183,7 @@ src/
 2. **Done:** soul pickups and score; three stages London Bridge → Waterloo → Westminster →
    Tower Hill with checkpoint bonuses and rising speed caps; St Paul's, Big Ben and
    Parliament, Tower Bridge, two Thames crossings; HUD and screens for score and stages
-3. Halloween hazards: ghosts swooping into lanes, lantern-flare power-up, lives/stumbles
+3. **Done:** ghosts (hovering and swooping, with wails), three lives with stumbles and
+   roof recovery, lantern pickups and the flare (banish ghosts, soul magnet), HUD lives
+   and flare bar
 4. Polish: particles, screen shake, touch-swipe controls, difficulty tuning

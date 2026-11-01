@@ -633,6 +633,75 @@ kbd {
   color: var(--c-accent);
 }
 
+.hud-right {
+  justify-self: end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.hud-lives {
+  display: flex;
+  gap: 2px;
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 150, 60, 0.3);
+  background: var(--surface);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+}
+
+.hud-life {
+  display: flex;
+  filter: drop-shadow(0 0 5px rgba(255, 140, 40, 0.7));
+  transition: filter var(--dur-med), opacity var(--dur-med), transform var(--dur-med) var(--ease-out);
+}
+
+.hud-life svg {
+  width: 24px;
+  height: 22px;
+}
+
+.hud-life.lost {
+  filter: grayscale(1) brightness(0.5);
+  opacity: 0.4;
+  transform: scale(0.82);
+}
+
+.hud-flare {
+  display: none;
+  padding: 4px var(--space-3);
+  border-color: rgba(255, 170, 70, 0.5);
+  box-shadow: var(--glow-accent);
+}
+
+.hud-flare.active {
+  display: inline-flex;
+}
+
+.hud-flare svg {
+  width: 16px;
+  height: 22px;
+}
+
+.hud-flare-bar {
+  position: relative;
+  width: 80px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.hud-flare-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff7a1a, #ffe2a8);
+}
+
 .hud-speed {
   justify-self: end;
   flex-direction: column;

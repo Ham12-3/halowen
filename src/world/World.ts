@@ -3,7 +3,9 @@ import { STATIONS } from '../game/route';
 import { createAtmosphere } from './atmosphere';
 import type { Course } from './course';
 import { CourseView } from './CourseView';
+import { GhostsView } from './GhostsView';
 import { createLighting } from './lighting';
+import { PickupsView } from './PickupsView';
 import { createLondonEye, createShard } from './props/landmarks';
 import { createStation } from './props/station';
 import { createStPauls } from './props/stPauls';
@@ -25,6 +27,8 @@ const EYE_SPIN = 0.03;
 export class World {
   readonly courseView = new CourseView();
   private readonly soulsView = new SoulsView();
+  private readonly ghostsView = new GhostsView();
+  private readonly pickupsView = new PickupsView();
   private readonly skyline = new Skyline();
   private readonly viaduct = createViaduct();
   private readonly sky: Group;
@@ -39,6 +43,8 @@ export class World {
       this.viaduct.group,
       this.courseView.group,
       this.soulsView.group,
+      this.ghostsView.group,
+      this.pickupsView.group,
       this.skyline.group,
       createRivers(),
       createShard(),
@@ -61,6 +67,8 @@ export class World {
     this.skyline.update(distance);
     this.courseView.update(course);
     this.soulsView.update(course, distance, elapsed);
+    this.ghostsView.update(course, distance, elapsed);
+    this.pickupsView.update(course, distance, elapsed);
     this.eyeWheel.rotation.z += EYE_SPIN * dt;
     // Keep the sky dome centred on the camera so it always reads as infinitely far.
     this.sky.position.copy(camera.position);

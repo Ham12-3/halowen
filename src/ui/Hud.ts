@@ -1,6 +1,7 @@
+import { FLARE, LIVES } from '../game/config';
 import { formatDistance, formatScore, formatTime, type GameState } from '../game/GameState';
 import { STAGE_COUNT, stageEnds } from '../game/route';
-import { CLOCK_ICON, SOUL_ICON } from './icons';
+import { CLOCK_ICON, LANTERN_ICON, PUMPKIN_ICON, SOUL_ICON } from './icons';
 
 const TOAST_MS = 2200;
 
@@ -18,6 +19,9 @@ export class Hud {
   private readonly fill: HTMLElement;
   private readonly rail: HTMLElement;
   private readonly pace: HTMLElement;
+  private readonly lives: HTMLElement[];
+  private readonly flare: HTMLElement;
+  private readonly flareFill: HTMLElement;
   private readonly toastEl: HTMLDivElement;
   private readonly crashFlash: HTMLDivElement;
   private toastTimer = 0;
@@ -46,9 +50,15 @@ export class Hud {
         </div>
         <div class="hud-route-labels"><span class="hud-from"></span><strong class="hud-remaining"></strong><span class="hud-to"></span></div>
       </div>
-      <div class="hud-pill hud-speed">
-        <div class="hud-speed-reading"><span class="hud-speed-value"></span><span class="hud-speed-unit">km/h</span></div>
-        <div class="hud-pace"><div class="hud-pace-fill"></div></div>
+      <div class="hud-right">
+        <div class="hud-pill hud-speed">
+          <div class="hud-speed-reading"><span class="hud-speed-value"></span><span class="hud-speed-unit">km/h</span></div>
+          <div class="hud-pace"><div class="hud-pace-fill"></div></div>
+        </div>
+        <div class="hud-lives" aria-label="Lives">${`<span class="hud-life">${PUMPKIN_ICON}</span>`.repeat(LIVES.count)}</div>
+        <div class="hud-pill hud-flare" aria-label="Lantern flare">
+          ${LANTERN_ICON}<div class="hud-flare-bar"><div class="hud-flare-fill"></div></div>
+        </div>
       </div>
     `;
     this.toastEl = document.createElement('div');
@@ -78,6 +88,9 @@ export class Hud {
     this.fill = find('.hud-track-fill');
     this.rail = find('.hud-marker-rail');
     this.pace = find('.hud-pace-fill');
+    this.lives = Array.from(this.root.querySelectorAll<HTMLElement>('.hud-life'));
+    this.flare = find('.hud-flare');
+    this.flareFill = find('.hud-flare-fill');
     this.el.soulsBox.addEventListener('animationend', () => this.el.soulsBox.classList.remove('pulse'));
     this.crashFlash.addEventListener('animationend', () => this.crashFlash.classList.remove('active'));
   }
@@ -104,6 +117,16 @@ export class Hud {
     if (pace !== this.last.pace) {
       this.pace.style.transform = `scaleX(${pace})`;
       this.last.pace = pace;
+    }
+    if (state.lives !== this.last.lives) {
+      this.lives.forEach((life, i) => life.classList.toggle('lost', i >= state.lives));
+      this.last.lives = state.lives;
+    }
+    const flare = Math.round((state.flareLeft / FLARE.duration) * 100) / 100;
+    if (flare !== this.last.flare) {
+      this.flare.classList.toggle('active', flare > 0);
+      this.flareFill.style.transform = `scaleX(${flare})`;
+      this.last.flare = flare;
     }
   }
 

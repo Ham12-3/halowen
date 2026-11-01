@@ -1,7 +1,10 @@
-import { COURSE, LANES, RUN, SOUL, TRAIN } from '../game/config';
+import { COURSE, GHOST, LANES, TRAIN } from '../game/config';
 import { nearStation, overRiver } from '../game/route';
+import { type Ghost, type Pickup, placeGhosts, placePickup } from './hazards';
 import type { Rng } from './rng';
 import { placeSouls, type Soul } from './souls';
+
+export { laneX, nearestLane } from './lanes';
 
 /**
  * The line ahead, generated a block at a time. Each block is a 14 m slice of
@@ -25,7 +28,12 @@ export interface Block {
   obstacles: Obstacle[];
   /** A road bridge spans every lane here (each lane also gets a 'bar' obstacle). */
   bridge: boolean;
+  /** Hazard-free stretch (start of the line, around stations). */
+  calm: boolean;
   souls: Soul[];
+  /** Filled in once the next block exists (see Course.generate). */
+  ghosts: Ghost[];
+  pickups: Pickup[];
 }
 
 interface LaneState {
@@ -37,15 +45,6 @@ interface LaneState {
 }
 
 const L = TRAIN.blockLength;
-const MID_LANE = (LANES.count - 1) / 2;
-
-export function laneX(lane: number): number {
-  return (lane - MID_LANE) * LANES.width;
-}
-
-export function nearestLane(x: number): number {
-  return Math.max(0, Math.min(LANES.count - 1, Math.round(x / LANES.width + MID_LANE)));
-}
 
 export class Course {
   /** Contiguous blocks, oldest first. */
@@ -53,6 +52,8 @@ export class Course {
   private lanes: LaneState[] = [];
   /** Block index of the last obstacle in each lane, to keep them spaced out. */
   private lastObstacle: number[] = [];
+  /** Distance of the last lantern pickup placed. */
+  private lastPickupAt = 0;
   private nextIndex = 0;
   private rng: Rng = Math.random;
   /** Bumped whenever blocks are added or dropped, so views know to rebuild. */
@@ -64,6 +65,7 @@ export class Course {
     this.nextIndex = 0;
     this.lanes = Array.from({ length: LANES.count }, () => ({ roof: true, length: 0, emptyFor: 0 }));
     this.lastObstacle = this.lanes.map(() => -Infinity);
+    this.lastPickupAt = 0;
     this.version++;
   }
 
@@ -101,22 +103,14 @@ export class Course {
     return out;
   }
 
-  /**
-   * Gathers the souls the runner is passing through: same lane, within reach
-   * along the track, and between their feet and head (heights above the roof).
-   */
-  collectSouls(x: number, feet: number, head: number, at: number): number {
-    let count = 0;
-    for (let i = Math.floor(at / L) - 1; i <= Math.floor(at / L) + 1; i++) {
-      for (const soul of this.block(i)?.souls ?? []) {
-        if (soul.taken || Math.abs(soul.at - at) > 0.75) continue;
-        if (Math.abs(x - laneX(soul.lane)) > RUN.halfWidth + SOUL.reach) continue;
-        if (soul.height < feet - 0.3 || soul.height > head + 0.2) continue;
-        soul.taken = true;
-        count++;
-      }
+  /** The generated blocks overlapping distances `at - range` to `at + range`. */
+  blocksNear(at: number, range: number): Block[] {
+    const out: Block[] = [];
+    for (let i = Math.floor((at - range) / L); i <= Math.floor((at + range) / L); i++) {
+      const block = this.block(i);
+      if (block) out.push(block);
     }
-    return count;
+    return out;
   }
 
   private block(index: number): Block | undefined {
@@ -182,6 +176,19 @@ export class Course {
       }
     }
     for (const o of obstacles) this.lastObstacle[o.lane] = index;
-    return { index, roof, obstacles, bridge, souls: placeSouls(start, roof, obstacles, this.rng) };
+    const block: Block = { index, roof, obstacles, bridge, calm, souls: [], ghosts: [], pickups: [] };
+    block.souls = placeSouls(start, roof, obstacles, this.rng);
+
+    // Now that this block exists, the previous one can be haunted: a ghost there needs to
+    // know a lane stays roofed past it (see placeGhosts).
+    if (prev) {
+      const before = this.blocks[this.blocks.length - 2];
+      const prevT = Math.min(1, (prev.index * L) / COURSE.rampDistance);
+      const [easy, hard] = GHOST.chance;
+      prev.ghosts = placeGhosts(prev, before, block, easy + (hard - easy) * prevT, this.rng);
+      prev.pickups = placePickup(prev, block, this.lastPickupAt, this.rng);
+      if (prev.pickups[0]) this.lastPickupAt = prev.pickups[0].at;
+    }
+    return block;
   }
 }

@@ -1,9 +1,19 @@
 import type { Sound } from '../audio/Sound';
 import type { RunnerEvents } from '../entities/Runner';
 import type { Hud } from '../ui/Hud';
+import type { Course } from '../world/course';
+import { swoopsStarting } from '../world/hazards';
+import { laneX } from '../world/lanes';
 import { ROUTE, SOUL, TRAIN } from './config';
 import type { CrashCause, GameState } from './GameState';
 import { FINISH, type Station } from './route';
+
+const HURT_TOASTS: Record<CrashCause, string> = {
+  fell: 'Off the train!',
+  hurdle: 'Tripped!',
+  bar: 'Ouch!',
+  ghost: 'A ghost got you!',
+};
 
 /**
  * Turns what happened in a step of the run into sound and HUD feedback: the
@@ -12,6 +22,7 @@ import { FINISH, type Station } from './route';
  */
 export class RunFeedback {
   private lastJoint = 0;
+  private lastDistance = 0;
   private lastSoulTime = -Infinity;
   private streak = 0;
   /** Milestones already announced this run. */
@@ -24,14 +35,20 @@ export class RunFeedback {
 
   reset(): void {
     this.lastJoint = 0;
+    this.lastDistance = 0;
     this.lastSoulTime = -Infinity;
     this.streak = 0;
     this.announced.clear();
     this.hud.clearToast();
   }
 
-  /** One step of a run still in progress. */
-  step(events: RunnerEvents, souls: number, station: Station | null, state: GameState): void {
+  /** One step of a run still in progress. `runnerX` places each swooping ghost's wail left or right. */
+  step(events: RunnerEvents, souls: number, station: Station | null, state: GameState, course: Course, runnerX: number): void {
+    for (const ghost of swoopsStarting(course, this.lastDistance, state.distance)) {
+      this.sound.wail(Math.max(-1, Math.min(1, (laneX(ghost.toLane) - runnerX) / 4)));
+    }
+    this.lastDistance = state.distance;
+
     if (events.jumped) this.sound.jump();
     if (events.landed) this.sound.land();
     if (events.slid) this.sound.slide();
@@ -61,6 +78,24 @@ export class RunFeedback {
   crashed(cause: CrashCause): void {
     this.sound.crash(cause);
     this.hud.flashCrash();
+  }
+
+  /** A life lost but the run goes on. */
+  hurt(cause: CrashCause, livesLeft: number): void {
+    this.sound.hurt();
+    this.hud.flashCrash();
+    this.hud.toast(`${HURT_TOASTS[cause]} ${livesLeft === 1 ? 'Last life!' : `${livesLeft} lives left`}`);
+  }
+
+  /** A lantern collected: the flare lights. */
+  flare(): void {
+    this.sound.flare();
+    this.hud.toast('Lantern flare!');
+  }
+
+  /** The flare banished one or more ghosts. */
+  banished(): void {
+    this.sound.banish();
   }
 
   arrived(): void {
