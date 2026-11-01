@@ -1,0 +1,81 @@
+import type { Sound } from '../audio/Sound';
+import type { RunnerEvents } from '../entities/Runner';
+import type { Hud } from '../ui/Hud';
+import { ROUTE, SOUL, TRAIN } from './config';
+import type { CrashCause, GameState } from './GameState';
+import { FINISH, type Station } from './route';
+
+/**
+ * Turns what happened in a step of the run into sound and HUD feedback: the
+ * clickety-clack of the couplings, the soul chime (climbing during a streak),
+ * station chimes and toasts, and "in sight" / "new best" milestones.
+ */
+export class RunFeedback {
+  private lastJoint = 0;
+  private lastSoulTime = -Infinity;
+  private streak = 0;
+  /** Milestones already announced this run. */
+  private readonly announced = new Set<string>();
+
+  constructor(
+    private readonly sound: Sound,
+    private readonly hud: Hud,
+  ) {}
+
+  reset(): void {
+    this.lastJoint = 0;
+    this.lastSoulTime = -Infinity;
+    this.streak = 0;
+    this.announced.clear();
+    this.hud.clearToast();
+  }
+
+  /** One step of a run still in progress. */
+  step(events: RunnerEvents, souls: number, station: Station | null, state: GameState): void {
+    if (events.jumped) this.sound.jump();
+    if (events.landed) this.sound.land();
+    if (events.slid) this.sound.slide();
+    if (events.switched) this.sound.lane();
+
+    // A clack at every carriage coupling passed.
+    const joint = Math.floor(state.distance / TRAIN.blockLength);
+    if (joint !== this.lastJoint) {
+      this.lastJoint = joint;
+      this.sound.clack(state.pace);
+    }
+
+    for (let i = 0; i < souls; i++) {
+      this.streak = state.time - this.lastSoulTime < SOUL.streakWindow ? this.streak + 1 : 0;
+      this.lastSoulTime = state.time;
+      this.sound.soul(this.streak);
+    }
+    if (souls > 0) this.hud.pulseSouls();
+
+    if (station) {
+      this.sound.station();
+      this.hud.toast(`${station.name}! +${ROUTE.stationBonus}`);
+    }
+    this.announce(state);
+  }
+
+  crashed(cause: CrashCause): void {
+    this.sound.crash(cause);
+    this.hud.flashCrash();
+  }
+
+  arrived(): void {
+    this.sound.arrive();
+  }
+
+  private announce(state: GameState): void {
+    const next = state.nextStation;
+    const once = (id: string, reached: boolean, text: string): void => {
+      if (!reached || this.announced.has(id)) return;
+      this.announced.add(id);
+      this.hud.toast(text);
+    };
+    const last = next.at >= FINISH;
+    once(`sight:${next.name}`, state.toNext <= 250 && state.toNext > 30, `${next.name} ${last ? '— the end of the line!' : 'in sight!'}`);
+    once('best', state.isNewBest, 'New best score!');
+  }
+}

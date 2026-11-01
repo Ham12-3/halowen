@@ -14,31 +14,17 @@ import {
   SRGBColorSpace,
   TorusGeometry,
 } from 'three';
-import { ROUTE } from '../../game/config';
 import { mergeParts, paint } from './geometry';
 import { getGlowTexture } from './glowTexture';
 import { STREET_Y } from './obstacles';
+import { SITES } from './sites';
 
-/** Where the big landmarks stand: `at` is distance along the route, x is the side offset. */
-/** Ahead and to the left at the start, inside the camera's view (London Bridge station sits at its foot). */
-export const SHARD = { at: 280, x: -62, height: 300 };
-export const EYE = { at: 1830, x: -125, radius: 60, hubHeight: 70 };
-/** The station mouth, where the run ends. */
-export const STATION_AT = ROUTE.length - 10;
+/** The Shard stands ahead and to the left at the start, inside the camera's view. */
+const SHARD = { ...SITES.shard, height: 300 };
+const EYE = { ...SITES.eye, radius: 60, hubHeight: 70 };
 
-/** Ground the skyline must leave free around each landmark (circle centres in world x/z). */
-const FOOTPRINTS = [
-  { x: SHARD.x, z: -SHARD.at, r: 42 },
-  { x: EYE.x, z: -EYE.at, r: 80 },
-];
-
-/** True if a building of radius `r` at (x, z) keeps clear of every landmark and the station. */
-export function landmarkClear(x: number, z: number, r: number): boolean {
-  if (-z > STATION_AT - 30 && -z < STATION_AT + 140 && Math.abs(x) < 46 + r) return false;
-  return FOOTPRINTS.every((f) => Math.hypot(x - f.x, z - f.z) > f.r + r);
-}
-
-function glow(color: number, size: number): Sprite {
+/** An additive glow sprite, unfogged so it reads from far away. Shared by the landmark builders. */
+export function glow(color: number, size: number): Sprite {
   const sprite = new Sprite(
     new SpriteMaterial({ map: getGlowTexture(), color, blending: AdditiveBlending, depthWrite: false, fog: false }),
   );

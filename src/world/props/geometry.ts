@@ -1,4 +1,4 @@
-import { type BufferGeometry, Color, Float32BufferAttribute, InstancedMesh, type Material, Object3D } from 'three';
+import { BoxGeometry, type BufferGeometry, Color, Float32BufferAttribute, InstancedMesh, type Material, Object3D } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** Gives every vertex of `geo` the same vertex colour (for single-material merged props). */
@@ -9,6 +9,19 @@ export function paint<T extends BufferGeometry>(geo: T, color: number | Color): 
   for (let i = 0; i < count; i++) c.toArray(colors, i * 3);
   geo.setAttribute('color', new Float32BufferAttribute(colors, 3));
   return geo;
+}
+
+/** A vertex-coloured box centred at (x, y, z), ready for mergeParts. */
+export function box(w: number, h: number, d: number, x: number, y: number, z: number, color: number): BufferGeometry {
+  const g = new BoxGeometry(w, h, d).translate(x, y, z);
+  g.deleteAttribute('uv');
+  return paint(g, color);
+}
+
+/** Drops UVs and paints a primitive one colour, so it merges with boxes. */
+export function solid(geometry: BufferGeometry, color: number): BufferGeometry {
+  geometry.deleteAttribute('uv');
+  return paint(geometry, color);
 }
 
 /** Where and how to place one instance of a prop. */

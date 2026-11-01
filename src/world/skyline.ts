@@ -10,7 +10,7 @@ import {
   SRGBColorSpace,
   type Texture,
 } from 'three';
-import { landmarkClear } from './props/landmarks';
+import { landmarkClear } from './props/sites';
 import { STREET_Y } from './props/obstacles';
 import { createRng, range, type Rng } from './rng';
 

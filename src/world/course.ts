@@ -1,5 +1,7 @@
-import { COURSE, LANES, ROUTE, TRAIN } from '../game/config';
+import { COURSE, LANES, RUN, SOUL, TRAIN } from '../game/config';
+import { nearStation, overRiver } from '../game/route';
 import type { Rng } from './rng';
+import { placeSouls, type Soul } from './souls';
 
 /**
  * The line ahead, generated a block at a time. Each block is a 14 m slice of
@@ -23,6 +25,7 @@ export interface Block {
   obstacles: Obstacle[];
   /** A road bridge spans every lane here (each lane also gets a 'bar' obstacle). */
   bridge: boolean;
+  souls: Soul[];
 }
 
 interface LaneState {
@@ -98,6 +101,24 @@ export class Course {
     return out;
   }
 
+  /**
+   * Gathers the souls the runner is passing through: same lane, within reach
+   * along the track, and between their feet and head (heights above the roof).
+   */
+  collectSouls(x: number, feet: number, head: number, at: number): number {
+    let count = 0;
+    for (let i = Math.floor(at / L) - 1; i <= Math.floor(at / L) + 1; i++) {
+      for (const soul of this.block(i)?.souls ?? []) {
+        if (soul.taken || Math.abs(soul.at - at) > 0.75) continue;
+        if (Math.abs(x - laneX(soul.lane)) > RUN.halfWidth + SOUL.reach) continue;
+        if (soul.height < feet - 0.3 || soul.height > head + 0.2) continue;
+        soul.taken = true;
+        count++;
+      }
+    }
+    return count;
+  }
+
   private block(index: number): Block | undefined {
     const first = this.blocks[0];
     return first ? this.blocks[index - first.index] : undefined;
@@ -107,8 +128,10 @@ export class Course {
     const start = index * L;
     const t = Math.min(1, start / COURSE.rampDistance);
     const ramp = ([easy, hard]: readonly number[]): number => (easy ?? 0) + ((hard ?? 0) - (easy ?? 0)) * t;
-    // No hazards at the start of the line or on the run-in to the station.
-    const calm = index < COURSE.safeBlocks || start > ROUTE.length - 90;
+    // No hazards at the start of the line or around the stations.
+    const mid = start + L / 2;
+    const calm =
+      index < COURSE.safeBlocks || nearStation(mid, COURSE.stationCalmBefore + L / 2, COURSE.stationCalmAfter + L / 2);
     const prev = this.blocks[this.blocks.length - 1];
 
     const roof = this.lanes.map((lane) => {
@@ -137,8 +160,9 @@ export class Course {
     // ~13 m, so anything closer could leave you landing on the next one with no time to react.
     const spaced = (lane: number): boolean => index - (this.lastObstacle[lane] ?? -Infinity) >= 2;
     if (!calm) {
-      const mid = start + L / 2;
-      if (this.rng() < ramp(COURSE.bridgeChance) && roof.every((_, lane) => spaced(lane))) {
+      // No road bridges over the river crossings.
+      const bridgeHere = !overRiver(mid, 10) && this.rng() < ramp(COURSE.bridgeChance);
+      if (bridgeHere && roof.every((_, lane) => spaced(lane))) {
         bridge = true;
         roof.forEach((_, lane) => obstacles.push({ lane, at: mid, kind: 'bar' }));
       } else {
@@ -158,6 +182,6 @@ export class Course {
       }
     }
     for (const o of obstacles) this.lastObstacle[o.lane] = index;
-    return { index, roof, obstacles, bridge };
+    return { index, roof, obstacles, bridge, souls: placeSouls(start, roof, obstacles, this.rng) };
   }
 }

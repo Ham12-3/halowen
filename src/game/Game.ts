@@ -1,17 +1,17 @@
 import { Scene, type WebGLRenderer } from 'three';
 import { Sound } from '../audio/Sound';
-import { Runner, type RunnerEvents } from '../entities/Runner';
+import { Runner } from '../entities/Runner';
 import { FpsMeter } from '../ui/FpsMeter';
 import { Hud } from '../ui/Hud';
 import { Screens } from '../ui/Screens';
 import { Course } from '../world/course';
 import { World } from '../world/World';
 import { ChaseCamera } from './ChaseCamera';
-import { ROUTE, TRAIN } from './config';
 import { GameState } from './GameState';
 import { Input } from './Input';
 import { Loop } from './Loop';
 import { createRenderer } from './renderer';
+import { RunFeedback } from './RunFeedback';
 
 /** Owns the renderer and wires the course, world, runner, camera, input, UI and sound together. */
 export class Game {
@@ -25,14 +25,11 @@ export class Game {
   private readonly state = new GameState();
   private readonly sound = new Sound();
   private readonly hud: Hud;
+  private readonly feedback: RunFeedback;
   private readonly screens: Screens;
   private readonly fps: FpsMeter;
   private readonly loop: Loop;
   private paused = false;
-  /** Index of the last carriage coupling passed, for the clickety-clack. */
-  private lastJoint = 0;
-  /** Milestones already announced this run. */
-  private readonly milestones = new Set<string>();
 
   constructor(container: HTMLElement) {
     this.renderer = createRenderer(container);
@@ -40,6 +37,7 @@ export class Game {
     this.scene.add(this.runner.root);
     this.camera = new ChaseCamera(window.innerWidth / window.innerHeight);
     this.hud = new Hud(container);
+    this.feedback = new RunFeedback(this.sound, this.hud);
     this.screens = new Screens(container, {
       onPlay: () => this.play(),
       onRestart: () => this.play(true),
@@ -71,9 +69,7 @@ export class Game {
   restart(): void {
     this.state.reset();
     this.paused = false;
-    this.lastJoint = 0;
-    this.milestones.clear();
-    this.hud.clearToast();
+    this.feedback.reset();
     this.course.reset(Math.random);
     this.course.update(0);
     this.runner.reset();
@@ -130,51 +126,25 @@ export class Game {
   simulate(dt: number, elapsed: number): void {
     const state = this.state;
     if (state.status === 'playing') {
-      state.advance(dt);
+      const station = state.advance(dt);
       this.course.update(state.distance);
       const events = this.runner.run(dt, elapsed, this.input.actions(), state.distance, state.speed, this.course);
-      this.playSounds(events);
+      const souls = events.crashed ? 0 : this.runner.collectSouls(this.course, state.distance);
+      state.collect(souls);
       if (events.crashed) {
         state.crash(events.crashed);
-        this.sound.crash(events.crashed);
-        this.hud.flashCrash();
+        this.feedback.crashed(events.crashed);
       } else if (state.isOver) {
-        this.sound.arrive(); // advance() ended the run by reaching the station
+        this.feedback.arrived(); // advance() ended the run at the last station
       } else {
-        this.announceMilestones();
+        this.feedback.step(events, souls, station, state);
       }
     } else {
       this.runner.idle(dt, elapsed);
     }
     this.camera.update(dt, this.runner.position, state.pace);
-    this.world.update(dt, this.camera.camera, state.distance, this.course);
+    this.world.update(dt, elapsed, this.camera.camera, state.distance, this.course);
     this.hud.update(state);
-  }
-
-  /** Short toasts under the route bar as the run passes its milestones. */
-  private announceMilestones(): void {
-    const state = this.state;
-    const once = (id: string, reached: boolean, text: string): void => {
-      if (!reached || this.milestones.has(id)) return;
-      this.milestones.add(id);
-      this.hud.toast(text);
-    };
-    once('half', state.progress >= 0.5, `Halfway to ${ROUTE.to}`);
-    once('sight', state.remaining <= 250, `${ROUTE.to} in sight!`);
-    once('best', state.isNewBest, 'New best run!');
-  }
-
-  private playSounds(events: RunnerEvents): void {
-    if (events.jumped) this.sound.jump();
-    if (events.landed) this.sound.land();
-    if (events.slid) this.sound.slide();
-    if (events.switched) this.sound.lane();
-    // A clack at every carriage coupling the runner passes over.
-    const joint = Math.floor(this.state.distance / TRAIN.blockLength);
-    if (joint !== this.lastJoint) {
-      this.lastJoint = joint;
-      this.sound.clack(this.state.pace);
-    }
   }
 
   private readonly onResize = (): void => {

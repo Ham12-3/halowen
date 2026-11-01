@@ -28,6 +28,13 @@ export const SIGNAL_ICON = `
     <path d="M4 27h22" stroke="#9aa0a8" stroke-width="2"/>
   </svg>`;
 
+/** A soul wisp: a pale blue flame. */
+export const SOUL_ICON = `
+  <svg viewBox="0 0 24 28" width="20" height="24" aria-hidden="true">
+    <path d="M12 1c4 5 8 9 8 15a8 8 0 01-16 0c0-4 2-6 3-8 1 2 2 3 3 3-1-4 0-7 2-10z" fill="#5fd8ff"/>
+    <path d="M12 12c2 2 4 4 4 7a4 4 0 01-8 0c0-2 1-3 2-4 .5 1 1 1.5 1.5 1.5-.5-2 0-3 .5-4.5z" fill="#e6fbff"/>
+  </svg>`;
+
 /** A stopwatch, for the run timer. */
 export const CLOCK_ICON = `
   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">

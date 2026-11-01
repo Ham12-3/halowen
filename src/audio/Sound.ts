@@ -13,6 +13,9 @@ function readMuted(): boolean {
   }
 }
 
+/** Pentatonic steps above A5, so a streak of souls climbs the scale. */
+const SOUL_STEPS = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
+
 /**
  * Every sound effect, synthesised with the Web Audio API (no audio files).
  * Nothing plays until `unlock()` runs inside a click or key press, because
@@ -109,7 +112,26 @@ export class Sound {
     });
   }
 
-  /** Into the station: a rising fanfare and the station bell. */
+  /** A soul gathered: a sparkle that climbs higher with each one in a quick streak. */
+  soul(streak: number): void {
+    this.play((ctx, out) => {
+      const step = SOUL_STEPS[Math.min(streak, SOUL_STEPS.length - 1)] ?? 0;
+      const freq = 880 * 2 ** (step / 12);
+      tone(ctx, out, { freq, decay: 0.28, gain: 0.22 });
+      tone(ctx, out, { type: 'triangle', freq: freq * 2, detune: 6, decay: 0.18, gain: 0.07 });
+    });
+  }
+
+  /** Passing through a station: the "ding-dong" of a platform announcement, and a bell. */
+  station(): void {
+    this.play((ctx, out) => {
+      tone(ctx, out, { freq: 659.25, decay: 0.9, gain: 0.14 });
+      tone(ctx, out, { freq: 523.25, at: 0.38, decay: 1.1, gain: 0.14 });
+      bell(ctx, out, 392, 0.05, 0.06);
+    });
+  }
+
+  /** The end of the line: a rising fanfare and the station bell. */
   arrive(): void {
     this.play((ctx, out) => {
       [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {

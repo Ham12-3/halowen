@@ -312,8 +312,8 @@ kbd {
 .route-strip {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  width: min(520px, 100%);
+  gap: var(--space-2);
+  width: 100%;
   margin: var(--space-2) 0;
   font: 600 14px/1.2 var(--font-display);
 }
@@ -328,6 +328,7 @@ kbd {
 .route-line {
   position: relative;
   flex: 1;
+  min-width: 56px;
   height: 6px;
   border-radius: var(--radius-pill);
   background: var(--c-tube-red);
@@ -372,7 +373,7 @@ kbd {
 /* How to play: three cards. */
 .how-to {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-3);
   width: 100%;
   padding: 0;
@@ -435,7 +436,7 @@ kbd {
 /* Stat tiles on the pause and end screens. */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   gap: var(--space-2);
   width: 100%;
 }
@@ -506,6 +507,16 @@ kbd {
   background: linear-gradient(90deg, #c85a10, var(--c-accent-bright));
 }
 
+/* A tick on the progress bar at each station passed on the way. */
+.run-progress i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(5, 7, 13, 0.85);
+}
+
 .run-progress-labels {
   display: flex;
   justify-content: space-between;
@@ -553,15 +564,73 @@ kbd {
   box-shadow: var(--shadow-1);
 }
 
-.hud-time {
+.hud-left {
   justify-self: start;
-  font: 600 22px/1 var(--font-display);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.hud-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.hud-label {
+  font: 600 10px/1.2 var(--font-display);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.hud-score {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px var(--space-4) var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.hud-score-value {
+  font: 700 28px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-time,
+.hud-souls {
+  padding: 6px var(--space-3);
+  font: 600 17px/1 var(--font-display);
   font-variant-numeric: tabular-nums;
 }
 
 .hud-time svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+}
+
+.hud-souls {
+  color: #c9f6ff;
+  border-color: rgba(95, 216, 255, 0.35);
+}
+
+.hud-souls svg {
+  width: 16px;
+  height: 19px;
+}
+
+.hud-souls.pulse {
+  animation: souls-pulse 0.5s var(--ease-out);
+}
+
+@keyframes souls-pulse {
+  35% { transform: scale(1.14); box-shadow: 0 0 22px rgba(95, 216, 255, 0.75); }
+}
+
+.hud-stage {
+  margin-bottom: 6px;
+  text-align: center;
+  color: var(--c-accent);
 }
 
 .hud-speed {
@@ -741,8 +810,11 @@ kbd {
   .screen-card.panel { padding: var(--space-5) var(--space-4) var(--space-4); }
   .hud { grid-template-columns: 1fr 1fr; }
   .hud-route { grid-column: 1 / -1; grid-row: 1; }
-  .hud-toast { top: 150px; }
+  .hud-toast { top: 170px; }
   .stat dd { font-size: 20px; }
+  .route-strip { flex-wrap: wrap; justify-content: center; row-gap: var(--space-2); font-size: 13px; }
+  .route-line { flex: 0 0 20px; min-width: 20px; }
+  .route-line span { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

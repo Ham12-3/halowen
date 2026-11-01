@@ -138,6 +138,13 @@ export class Runner {
     this.animate(dt, elapsed, 0);
   }
 
+  /** Gathers the souls the runner is passing through this step (same lane, between feet and head). */
+  collectSouls(course: Course, distance: number): number {
+    const p = this.root.position;
+    const feet = p.y - ROOF;
+    return course.collectSouls(p.x, feet, feet + (this.sliding ? RUN.slideHeight : RUN.height), distance);
+  }
+
   /** Hurdles must be jumped (feet above them); bars must be slid under (head below them). */
   private hitObstacle(course: Course, distance: number): CrashCause | null {
     const p = this.root.position;

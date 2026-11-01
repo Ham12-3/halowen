@@ -1,6 +1,6 @@
-import { BoxGeometry, type BufferGeometry, MeshBasicMaterial, MeshStandardMaterial } from 'three';
+import { type BufferGeometry, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { TRAIN } from '../../game/config';
-import { mergeParts, paint } from './geometry';
+import { box, mergeParts } from './geometry';
 
 /** A full carriage fills a block, less the coupling space. */
 export const CARRIAGE_LENGTH = TRAIN.blockLength - TRAIN.coupling;
@@ -16,12 +16,6 @@ const COLORS = {
   roof: 0x5a5e66,
   door: 0xc8102e, // Underground red
 };
-
-function box(w: number, h: number, d: number, x: number, y: number, z: number, color: number): BufferGeometry {
-  const g = new BoxGeometry(w, h, d).translate(x, y, z);
-  g.deleteAttribute('uv');
-  return paint(g, color);
-}
 
 /** Both sides of the carriage get a part at ±x. */
 function bothSides(make: (side: number) => BufferGeometry): BufferGeometry[] {

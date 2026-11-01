@@ -1,33 +1,41 @@
-import { ROUTE } from '../game/config';
-import { formatDistance, formatTime, type GameState } from '../game/GameState';
-import { CLOCK_ICON } from './icons';
+import { formatDistance, formatScore, formatTime, type GameState } from '../game/GameState';
+import { STAGE_COUNT, stageEnds } from '../game/route';
+import { CLOCK_ICON, SOUL_ICON } from './icons';
 
 const TOAST_MS = 2200;
 
+type Field = 'score' | 'souls' | 'soulsBox' | 'time' | 'stage' | 'from' | 'to' | 'remaining' | 'speed';
+
 /**
- * Heads-up display: run time, the route drawn as an Underground line with the
- * runner's marker, distance to go, speed with a pace bar, and short toasts
- * for milestones. Bars and the marker move with transforms only.
+ * Heads-up display: score, souls and time on the left; the current stage drawn
+ * as an Underground line with the runner's marker in the middle; speed with a
+ * pace bar on the right; and short toasts for stations and milestones. Bars and
+ * the marker move with transforms only, and the DOM is only touched on change.
  */
 export class Hud {
   private readonly root: HTMLDivElement;
-  private readonly time: HTMLSpanElement;
-  private readonly fill: HTMLDivElement;
-  private readonly rail: HTMLDivElement;
-  private readonly remaining: HTMLElement;
-  private readonly speed: HTMLSpanElement;
-  private readonly pace: HTMLDivElement;
+  private readonly el: Record<Field, HTMLElement>;
+  private readonly fill: HTMLElement;
+  private readonly rail: HTMLElement;
+  private readonly pace: HTMLElement;
   private readonly toastEl: HTMLDivElement;
   private readonly crashFlash: HTMLDivElement;
   private toastTimer = 0;
-  private last = { time: '', progress: -1, remaining: '', speed: -1, pace: -1 };
+  private last: Record<string, string | number> = {};
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
     this.root.className = 'hud';
     this.root.innerHTML = `
-      <div class="hud-pill hud-time" aria-label="Run time">${CLOCK_ICON}<span></span></div>
+      <div class="hud-left">
+        <div class="hud-pill hud-score"><span class="hud-label">Score</span><span class="hud-score-value"></span></div>
+        <div class="hud-row">
+          <div class="hud-pill hud-souls" aria-label="Souls">${SOUL_ICON}<span></span></div>
+          <div class="hud-pill hud-time" aria-label="Run time">${CLOCK_ICON}<span></span></div>
+        </div>
+      </div>
       <div class="hud-route">
+        <div class="hud-label hud-stage"></div>
         <div class="hud-line">
           <span class="roundel"></span>
           <div class="hud-track">
@@ -36,7 +44,7 @@ export class Hud {
           </div>
           <span class="roundel"></span>
         </div>
-        <div class="hud-route-labels"><span>${ROUTE.from}</span><strong class="hud-remaining"></strong><span>${ROUTE.to}</span></div>
+        <div class="hud-route-labels"><span class="hud-from"></span><strong class="hud-remaining"></strong><span class="hud-to"></span></div>
       </div>
       <div class="hud-pill hud-speed">
         <div class="hud-speed-reading"><span class="hud-speed-value"></span><span class="hud-speed-unit">km/h</span></div>
@@ -51,38 +59,46 @@ export class Hud {
     this.crashFlash.className = 'crash-flash';
     parent.append(this.crashFlash, this.root, this.toastEl);
 
-    const find = <T extends HTMLElement>(selector: string): T => {
-      const el = this.root.querySelector<T>(selector);
-      if (!el) throw new Error(`HUD element ${selector} missing`);
-      return el;
+    const find = (selector: string): HTMLElement => {
+      const found = this.root.querySelector<HTMLElement>(selector);
+      if (!found) throw new Error(`HUD element ${selector} missing`);
+      return found;
     };
-    this.time = find('.hud-time span');
+    this.el = {
+      score: find('.hud-score-value'),
+      souls: find('.hud-souls span'),
+      soulsBox: find('.hud-souls'),
+      time: find('.hud-time span'),
+      stage: find('.hud-stage'),
+      from: find('.hud-from'),
+      to: find('.hud-to'),
+      remaining: find('.hud-remaining'),
+      speed: find('.hud-speed-value'),
+    };
     this.fill = find('.hud-track-fill');
     this.rail = find('.hud-marker-rail');
-    this.remaining = find('.hud-remaining');
-    this.speed = find('.hud-speed-value');
     this.pace = find('.hud-pace-fill');
+    this.el.soulsBox.addEventListener('animationend', () => this.el.soulsBox.classList.remove('pulse'));
     this.crashFlash.addEventListener('animationend', () => this.crashFlash.classList.remove('active'));
   }
 
-  /** Cheap to call every frame: the DOM is only touched when something changes. */
+  /** Cheap to call every frame: each element is only written when its text changes. */
   update(state: GameState): void {
-    const time = formatTime(state.time);
-    if (time !== this.last.time) this.time.textContent = this.last.time = time;
+    const { from, to } = stageEnds(state.stage);
+    this.text('score', formatScore(state.score));
+    this.text('souls', String(state.souls));
+    this.text('time', formatTime(state.time));
+    this.text('stage', `Stage ${state.stage + 1} of ${STAGE_COUNT}`);
+    this.text('from', from.name);
+    this.text('to', to.name);
+    this.text('remaining', state.status === 'arrived' ? 'Arrived!' : `${formatDistance(state.toNext)} to go`);
+    this.text('speed', String(Math.round(state.speed * 3.6)));
 
-    const progress = Math.round(state.progress * 1000) / 1000;
+    const progress = Math.round(Math.min(1, Math.max(0, (state.distance - from.at) / (to.at - from.at))) * 1000) / 1000;
     if (progress !== this.last.progress) {
       this.fill.style.transform = `scaleX(${progress})`;
       this.rail.style.transform = `translateX(${progress * 100}%)`;
       this.last.progress = progress;
-    }
-    const remaining = state.status === 'arrived' ? 'Arrived!' : `${formatDistance(state.remaining)} to go`;
-    if (remaining !== this.last.remaining) this.remaining.textContent = this.last.remaining = remaining;
-
-    const kmh = Math.round(state.speed * 3.6);
-    if (kmh !== this.last.speed) {
-      this.speed.textContent = String(kmh);
-      this.last.speed = kmh;
     }
     const pace = Math.round(Math.max(0, state.pace) * 100) / 100;
     if (pace !== this.last.pace) {
@@ -96,7 +112,12 @@ export class Hud {
     this.root.classList.toggle('hidden', !visible);
   }
 
-  /** A short message under the route bar, e.g. "New best!". */
+  /** A quick flare on the soul counter when souls are gathered. */
+  pulseSouls(): void {
+    this.restartAnimation(this.el.soulsBox, 'pulse');
+  }
+
+  /** A short message under the route bar, e.g. "Waterloo! +500". */
   toast(text: string): void {
     this.toastEl.textContent = text;
     this.restartAnimation(this.toastEl, 'show');
@@ -113,6 +134,12 @@ export class Hud {
   /** Red flash at the edges when the run ends in a crash. */
   flashCrash(): void {
     this.restartAnimation(this.crashFlash, 'active');
+  }
+
+  private text(key: Field, value: string): void {
+    if (this.last[key] === value) return;
+    this.el[key].textContent = value;
+    this.last[key] = value;
   }
 
   private restartAnimation(el: HTMLElement, className: string): void {

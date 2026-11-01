@@ -1,6 +1,6 @@
-import { BoxGeometry, type BufferGeometry, CylinderGeometry, SphereGeometry } from 'three';
+import { type BufferGeometry, CylinderGeometry, SphereGeometry } from 'three';
 import { LANES, OBSTACLE, TRAIN } from '../../game/config';
-import { mergeParts, paint } from './geometry';
+import { box, mergeParts, solid } from './geometry';
 
 /**
  * Obstacle models, built around their own origin on the roof of a carriage
@@ -10,12 +10,6 @@ import { mergeParts, paint } from './geometry';
 const ROOF = TRAIN.roofHeight;
 /** Street level, below the viaduct. */
 export const STREET_Y = -9;
-
-function box(w: number, h: number, d: number, x: number, y: number, z: number, color: number): BufferGeometry {
-  const g = new BoxGeometry(w, h, d).translate(x, y, z);
-  g.deleteAttribute('uv');
-  return paint(g, color);
-}
 
 const BAR_HEIGHT = OBSTACLE.barTop - OBSTACLE.barBottom;
 const BAR_WIDTH = OBSTACLE.barHalfWidth * 2;
@@ -35,10 +29,9 @@ export function createBarFrame(): BufferGeometry {
 /** Hazard stripe along the board's lower edge plus a red signal lamp: "slide under". */
 export function createBarGlow(): BufferGeometry {
   const lamp = new SphereGeometry(0.16, 10, 8).translate(0, OBSTACLE.barBottom + BAR_HEIGHT - 0.35, BAR_DEPTH / 2 + 0.05);
-  lamp.deleteAttribute('uv');
   return mergeParts([
     box(BAR_WIDTH, 0.14, BAR_DEPTH + 0.04, 0, OBSTACLE.barBottom + 0.07, 0, 0xff8a1a),
-    paint(lamp, 0xff2a1a),
+    solid(lamp, 0xff2a1a),
   ]);
 }
 
@@ -63,11 +56,9 @@ export function createBridgeFrame(): BufferGeometry {
 /** Warning stripe under both faces of the bridge, plus lamps on its parapet. */
 export function createBridgeGlow(): BufferGeometry {
   const span = LANES.count * LANES.width + 4;
-  const lamps = [-0.35, 0, 0.35].map((f) => {
-    const lamp = new CylinderGeometry(0.12, 0.12, 0.3, 8).translate(f * span, OBSTACLE.barTop + 1.0, 1.85);
-    lamp.deleteAttribute('uv');
-    return paint(lamp, 0xffc46b);
-  });
+  const lamps = [-0.35, 0, 0.35].map((f) =>
+    solid(new CylinderGeometry(0.12, 0.12, 0.3, 8).translate(f * span, OBSTACLE.barTop + 1.0, 1.85), 0xffc46b),
+  );
   return mergeParts([
     box(span, 0.14, 0.06, 0, OBSTACLE.barBottom + 0.07, 2.02, 0xff8a1a),
     box(span, 0.14, 0.06, 0, OBSTACLE.barBottom + 0.07, -2.02, 0xff8a1a),

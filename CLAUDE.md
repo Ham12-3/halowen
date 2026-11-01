@@ -1,11 +1,14 @@
 # Midnight Line
 
-A browser-based 3D Halloween endless-runner, in the style of Subway Surfers. The
-player is a hooded lantern bearer running along the roofs of London Underground
-trains on a brick railway viaduct, at night, from London Bridge (under the
-Shard) to Waterloo (past the London Eye). Three lanes: switch lanes before your
-train runs out, jump gaps and piles of jack-o'-lanterns, slide under signal
-boards and road bridges. Reaching Waterloo clears the stage; one crash ends the run.
+A browser-based 3D Halloween runner, in the style of Subway Surfers. The player
+is a hooded lantern bearer running along the roofs of London Underground trains
+on a brick railway viaduct, at night, across London: London Bridge → Waterloo →
+Westminster → Tower Hill (three stages, 6.6 km), past the Shard, St Paul's, the
+London Eye, Big Ben and Parliament, and Tower Bridge, crossing the Thames twice.
+Three lanes: switch lanes before your train runs out, jump gaps and piles of
+jack-o'-lanterns, slide under signal boards and road bridges, and gather glowing
+soul wisps. Each station passed is a checkpoint (+500); reaching Tower Hill wins;
+one crash ends the run. Score = metres + 10 per soul + station bonuses.
 
 The previous game in this repo, **Pumpkin Hollow** (a free-roaming graveyard
 game), is preserved on the `phase-4-flare-shrines-sound` branch. Its ghost model
@@ -37,32 +40,40 @@ src/
   style.css               design tokens, screens, HUD (all colours/spacing are CSS variables)
   game/
     Game.ts               wires everything; frame() handles menu keys + renders, simulate() advances a run
-    GameState.ts          distance, speed, time, status (ready / playing / crashed / arrived), best run
+    GameState.ts          distance, speed, souls, score, stations reached, status, best score
+    route.ts              stations/stages helpers: stageAt, stageEnds, speedCapAt, nearStation, overRiver
+    RunFeedback.ts        per-step sound + HUD feedback: clacks, soul streak chime, station toasts, milestones
     ChaseCamera.ts        camera behind the runner; eases sideways/up, locked along the track, FOV widens with pace
     Input.ts              keyboard only; actions() = this frame's left/right/jump/slide presses
     Loop.ts, renderer.ts  rAF loop with clamped delta; WebGLRenderer setup (no shadow maps)
-    config.ts             ALL tuning: LANES, RUN, TRAIN, OBSTACLE, COURSE, ROUTE, CAMERA, ATMOSPHERE
+    config.ts             ALL tuning: LANES, RUN, TRAIN, OBSTACLE, COURSE, ROUTE, SOUL, CAMERA, ATMOSPHERE
   world/
-    course.ts             block-by-block course generator + queries (hasRoof, obstaclesNear, laneX)
+    course.ts             block-by-block course generator + queries (hasRoof, obstaclesNear, collectSouls)
+    souls.ts              soul trail placement per block (line / low under bars / arc over hurdles and gaps)
     CourseView.ts         instanced carriages, gap pieces, pumpkin hurdles, signal boards, bridges
-    World.ts              owns sky, lights, viaduct, course view, skyline, landmarks, station
+    SoulsView.ts          instanced soul wisps + halos, animated every frame
+    World.ts              owns sky, lights, viaduct, course + souls views, skyline, river, landmarks, stations
     viaduct.ts            ballast/rails/parapets/arches/street, shifted in 2-block steps
     skyline.ts            recycled London buildings (terraces, offices, towers) both sides
+    river.ts              Thames water + embankment lamps at each crossing
     atmosphere.ts         FogExp2, gradient sky dome, moon, stars
     lighting.ts           moonlight + hemisphere fill (no shadows)
     rng.ts                seeded PRNG + value noise
-    props/                train, obstacles, landmarks (Shard, London Eye), station (Waterloo),
-                          pumpkins, glow texture, geometry helpers (instance, mergeParts, paint)
+    props/                sites.ts (landmark positions + landmarkClear), landmarks (Shard, Eye),
+                          stPauls, westminster (Big Ben, Parliament), towerBridge, station,
+                          train, obstacles, pumpkins, glow texture,
+                          geometry helpers (box, solid, paint, mergeParts, instance)
   entities/
     Runner.ts             lanes, jump, slam, slide, landing, falling, obstacle hits, poses
     playerModel.ts        hooded figure + blob shadow; Lantern.ts the lantern and its light
   ui/
-    Hud.ts                timer, Underground-style route line, distance to go, speed + pace bar, toasts
+    Hud.ts                score, souls, time; current stage as an Underground line; speed + pace bar; toasts
     Screens.ts            title / pause / end overlays (picked each frame from status + paused)
     icons.ts              inline SVG icons (decorative, aria-hidden)
     FpsMeter.ts           dev frame-rate / draw-call meter (backquote toggles)
   audio/
-    Sound.ts              whistle, clickety-clack, jump/land/slide/lane, crash, arrival; mute
+    Sound.ts              whistle, clickety-clack, jump/land/slide/lane, soul chime, station chime,
+                          crash, arrival; mute
     synth.ts, ambience.ts tone/noise/bell building blocks; wind, drone and owl
 ```
 
@@ -77,7 +88,20 @@ src/
   hole mid-carriage; jump). Bridges are a `bar` in every lane. Fairness rules in
   `Course.generate()`: some lane is roofed in both this block and the last; no
   lane gets obstacles in back-to-back blocks; early on one roofed lane stays clear;
-  the first blocks and the run-in to Waterloo are hazard-free.
+  the first blocks and the track around every station are hazard-free; no road
+  bridges over the river.
+- **Route and stages:** `ROUTE.stations` (distance of each stop) defines the stages;
+  `ROUTE.stageSpeeds` caps speed per stage; `ROUTE.rivers` are the Thames crossings.
+  Use the helpers in `game/route.ts` rather than reading `ROUTE` directly. Every
+  station after the first gets a shed (`createStation`), open at both ends so you
+  run through; `GameState.advance()` returns the station reached that step.
+- **Souls:** each block may carry one trail (`souls.ts`), shaped by its lane's
+  obstacle. They are gathered when the runner's lane, feet-to-head span and
+  distance overlap them (`course.collectSouls`). Gathered souls are flagged
+  `taken`; `SoulsView` stops drawing them.
+- **Landmarks** are placed from `props/sites.ts` (`at` along the line, `x` sideways,
+  within ~75 m of the track so they come into view ahead). `landmarkClear()` keeps
+  the skyline off landmarks, stations, Parliament's frontage and the river.
 - **Collision** is lane-based, not geometric: support = `course.hasRoof(nearestLane(x), distance)`;
   obstacle hits compare feet/head height against `OBSTACLE` heights. Models in
   `props/obstacles.ts` are built from the same `OBSTACLE` constants, so change them
@@ -98,7 +122,7 @@ src/
   (`play`, `restart`, `sound`); screens focus their main button; animations
   respect `prefers-reduced-motion`. HUD bars/markers move with transforms only.
 - **Performance target:** 60 fps on a mid-range laptop (Iris Xe class). Currently
-  ~45 draw calls and ~25k triangles. Pixel ratio capped at 1.5.
+  ~50-60 draw calls and ~30-50k triangles. Pixel ratio capped at 1.5.
 - Keep files focused and under ~200 lines; split builders out when they grow.
 
 ## Testing notes
@@ -118,14 +142,17 @@ src/
   `EXT_disjoint_timer_query_webgl2` around a warm burst of ~8 renders.
 - The pane can't play audio: render effects offline with an `OfflineAudioContext` via
   `Sound.prototype.x.call({ play: (make) => make(ctx, out) })` and check peak/RMS.
-- Bot runs save a best distance in localStorage (`midnight-line-best`); clear it afterwards.
+- Bot runs save a best score in localStorage (`midnight-line-best-score`); clear it afterwards.
+- A bot gets the whole 6.6 km only some of the time; stage 3 (26 m/s) is hard on purpose.
+  Re-check with the bot whenever `ROUTE.stageSpeeds` or `COURSE` change.
 - After each phase: run `npm run typecheck`, start the dev server, and check the browser console.
 
 ## Build phases
 
 1. **Done:** core runner: viaduct, trains in 3 lanes, run/switch/jump/slide, obstacles + crash,
    chase camera, London skyline, the Shard, London Eye, Waterloo finish, HUD, screens, sound
-2. Soul coins / pickups and score; station-to-station stages (Waterloo → Westminster…) with
-   more landmarks (St Paul's, Tate Modern, Big Ben)
+2. **Done:** soul pickups and score; three stages London Bridge → Waterloo → Westminster →
+   Tower Hill with checkpoint bonuses and rising speed caps; St Paul's, Big Ben and
+   Parliament, Tower Bridge, two Thames crossings; HUD and screens for score and stages
 3. Halloween hazards: ghosts swooping into lanes, lantern-flare power-up, lives/stumbles
 4. Polish: particles, screen shake, touch-swipe controls, difficulty tuning

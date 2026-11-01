@@ -8,8 +8,7 @@ export const LANES = {
 
 export const RUN = {
   startSpeed: 11,
-  maxSpeed: 20,
-  /** Speed gained per second of running. */
+  /** Speed gained per second of running (each stage caps it: ROUTE.stageSpeeds). */
   acceleration: 0.08,
   /** How quickly the runner slides across to a new lane (higher = snappier). */
   laneSharpness: 16,
@@ -70,14 +69,49 @@ export const COURSE = {
   /** Chance a block gets a road bridge across every lane (slide under it). */
   bridgeChance: [0.04, 0.1],
   /** Distance over which the difficulty ramps up from start to full. */
-  rampDistance: 1800,
+  rampDistance: 3000,
+  /** Hazard-free track before and after each station. */
+  stationCalmBefore: 90,
+  stationCalmAfter: 40,
 } as const;
 
+/**
+ * The Midnight Line: stations in order with their distance along the track.
+ * Each stretch between stations is a stage; reaching the last one wins.
+ */
 export const ROUTE = {
-  from: 'London Bridge',
-  to: 'Waterloo',
-  /** Metres of track from London Bridge to Waterloo. */
-  length: 2000,
+  stations: [
+    { name: 'London Bridge', at: 0 },
+    { name: 'Waterloo', at: 2000 },
+    { name: 'Westminster', at: 4200 },
+    { name: 'Tower Hill', at: 6600 },
+  ],
+  /** Top speed (m/s) on each stage: the line gets faster after every station. */
+  stageSpeeds: [20, 23, 26],
+  /** Where the line crosses the Thames: [from, to] distances. */
+  rivers: [
+    [3540, 3790],
+    [6250, 6470],
+  ],
+  /** Points for reaching each station after the first. */
+  stationBonus: 500,
+} as const;
+
+/** Glowing soul wisps to collect along the roofs. */
+export const SOUL = {
+  /** Points per soul. */
+  value: 10,
+  /** Chance a block gets a trail of souls. */
+  trailChance: 0.5,
+  perTrail: 5,
+  spacing: 2.3,
+  /** Height above the roof of a trail in a clear lane; trails under bars sit low, over hurdles they arc. */
+  height: 1.0,
+  lowHeight: 0.4,
+  /** How close (sideways, beyond the runner's half width) a soul must be to be gathered. */
+  reach: 0.5,
+  /** A pickup within this many seconds of the last one raises the chime's pitch. */
+  streakWindow: 1.2,
 } as const;
 
 export const CAMERA = {

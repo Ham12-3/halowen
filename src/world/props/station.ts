@@ -11,9 +11,12 @@ import {
   PlaneGeometry,
   SRGBColorSpace,
 } from 'three';
-import { LANES, ROUTE } from '../../game/config';
-import { STATION_AT } from './landmarks';
+import { LANES } from '../../game/config';
+import type { Station } from '../../game/route';
 import { STREET_Y } from './obstacles';
+
+/** The shed's mouth sits this far before the station's distance, so you arrive inside it. */
+const MOUTH_BEFORE = 10;
 
 const SHED_LENGTH = 120;
 const SHED_RADIUS = LANES.count * LANES.width * 0.5 + 3.5;
@@ -45,12 +48,14 @@ function roundelTexture(name: string): CanvasTexture {
 }
 
 /**
- * Waterloo: an arched train shed over all the tracks, a glowing glass end
- * screen at its mouth, the roundel above, and brick walls down to the street.
+ * A station on the line: an arched train shed over all the tracks (open at both
+ * ends, so you run straight through intermediate stops), a glowing glass screen
+ * at its mouth, the roundel above, and brick walls down to the street.
  */
-export function createStation(name: string = ROUTE.to): Group {
+export function createStation(station: Station): Group {
+  const name = station.name;
   const group = new Group();
-  group.name = 'station';
+  group.name = `station:${name}`;
 
   // Upper half of a cylinder lying along the track (see the rotateX note below).
   const shed = new CylinderGeometry(SHED_RADIUS, SHED_RADIUS, SHED_LENGTH, 32, 1, true, Math.PI / 2, Math.PI);
@@ -79,6 +84,6 @@ export function createStation(name: string = ROUTE.to): Group {
   sign.position.set(0, SPRING + SHED_RADIUS + 3.2, 0.3);
   group.add(sign);
 
-  group.position.z = -STATION_AT;
+  group.position.z = -(station.at - MOUTH_BEFORE);
   return group;
 }
