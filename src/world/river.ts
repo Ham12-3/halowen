@@ -33,7 +33,7 @@ export function createRivers(): Group {
     group.add(mesh);
     for (const bank of [from, to]) {
       for (let x = -WIDTH / 2; x <= WIDTH / 2; x += LAMP_SPACING) {
-        if (Math.abs(x) < 8) continue; // the viaduct itself
+        if (Math.abs(x) < 10) continue; // the viaduct itself
         lamps.push(x, STREET_Y + 4, -bank);
       }
     }

@@ -1,6 +1,7 @@
 import {
   AdditiveBlending,
   BufferGeometry,
+  Color,
   Float32BufferAttribute,
   Group,
   IcosahedronGeometry,
@@ -30,16 +31,19 @@ export class SoulsView {
   private readonly dummy = new Object3D();
 
   constructor() {
-    this.cores = new InstancedMesh(new IcosahedronGeometry(0.2, 1), new MeshBasicMaterial({ color: 0xd2f8ff }), MAX_SOULS);
+    // A small, very bright core: the bloom turns it into a point of light rather than a visible shape.
+    const core = new MeshBasicMaterial({ color: new Color(0xd2f8ff).multiplyScalar(3.5) });
+    this.cores = new InstancedMesh(new IcosahedronGeometry(0.12, 2), core, MAX_SOULS);
     const haloGeometry = new BufferGeometry();
     haloGeometry.setAttribute('position', new Float32BufferAttribute(new Float32Array(MAX_SOULS * 3), 3));
     this.halos = new Points(
       haloGeometry,
       new PointsMaterial({
-        size: 1.4,
+        size: 1.1,
         map: getGlowTexture(),
         color: 0x5fd8ff,
         transparent: true,
+        opacity: 0.7,
         depthWrite: false,
         blending: AdditiveBlending,
       }),

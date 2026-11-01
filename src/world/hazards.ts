@@ -75,15 +75,15 @@ export function swoopsStarting(course: Course, from: number, to: number): Ghost[
     .filter((g) => g.goneAt === null && g.lane !== g.toLane && g.at - ahead > from && g.at - ahead <= to);
 }
 
-/** Banishes every haunting ghost up to `reach` ahead. Returns how many. */
-export function banishGhosts(course: Course, distance: number, reach: number): number {
-  let count = 0;
+/** Banishes every haunting ghost up to `reach` ahead, and returns them (for their wisps). */
+export function banishGhosts(course: Course, distance: number, reach: number): Ghost[] {
+  const banished: Ghost[] = [];
   for (const g of course.blocksNear(distance + reach / 2, reach / 2 + L).flatMap((b) => b.ghosts)) {
     if (g.goneAt !== null || g.at < distance - 1 || g.at > distance + reach) continue;
     g.goneAt = distance;
-    count++;
+    banished.push(g);
   }
-  return count;
+  return banished;
 }
 
 /** The ghost the runner's body is touching, if any (feet and head are heights above the roof). */

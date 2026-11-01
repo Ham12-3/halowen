@@ -25,6 +25,16 @@ type ScreenView = 'start' | 'pause' | 'end';
 const FIRST = STATIONS[0]?.name ?? '';
 const LAST = STATIONS[STATIONS.length - 1]?.name ?? '';
 
+/** Phones and tablets get swipe hints instead of keys. */
+const TOUCH = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+const LANE_KEYS = TOUCH ? ['←', '→'] : ['A', 'D'];
+const JUMP_KEYS = TOUCH ? ['↑', '↓'] : ['W', 'S'];
+const START_HINT = TOUCH
+  ? 'Swipe <kbd>←</kbd><kbd>→</kbd> to switch lanes, <kbd>↑</kbd> to jump, <kbd>↓</kbd> to slide'
+  : 'or press <kbd>Space</kbd> &middot; <kbd>Esc</kbd> pause &middot; <kbd>M</kbd> sound';
+const PAUSE_HINT = TOUCH ? '' : '<p class="hint"><kbd>Esc</kbd> resume &middot; <kbd>M</kbd> sound</p>';
+const AGAIN_HINT = TOUCH ? '' : 'or press <kbd>Space</kbd> &middot; ';
+
 const CRASHES: Record<CrashCause, [string, string]> = {
   fell: ['Off the rails!', 'You fell onto the tracks'],
   hurdle: ['Tripped on the pumpkins!', 'You went flying over a pile of jack-o’-lanterns'],
@@ -56,13 +66,13 @@ function startView(state: GameState): string {
       <p class="tagline">Run the rooftops of the night trains across London, from ${FIRST} to ${LAST}. Gather souls, don't fall.</p>
       ${lineMap()}
       <ul class="how-to">
-        ${tip(LANES_ICON, 'Switch lanes', 'Hop tracks before your train runs out.', ['A', 'D'])}
-        ${tip(PUMPKIN_ICON, 'Jump & slide', 'Leap gaps and pumpkins; duck under signals and bridges.', ['W', 'S'])}
+        ${tip(LANES_ICON, 'Switch lanes', 'Hop tracks before your train runs out.', LANE_KEYS)}
+        ${tip(PUMPKIN_ICON, 'Jump & slide', 'Leap gaps and pumpkins; duck under signals and bridges.', JUMP_KEYS)}
         ${tip(GHOST_ICON, 'Dodge ghosts', `Red eyes mean it's swooping your way. ${LIVES.count} lives.`, [])}
         ${tip(LANTERN_ICON, 'Grab lanterns', 'The flare banishes ghosts and pulls souls to you.', [])}
       </ul>
       <button type="button" class="btn btn-primary" data-action="play">Start running</button>
-      <p class="hint">or press <kbd>Space</kbd> &middot; <kbd>Esc</kbd> pause &middot; <kbd>M</kbd> sound</p>
+      <p class="hint">${START_HINT}</p>
       ${best}
     </div>`;
 }
@@ -95,7 +105,7 @@ function pauseView(state: GameState, muted: boolean): string {
         <button type="button" class="btn btn-ghost" data-action="restart">Restart run</button>
       </div>
       ${soundButton(muted)}
-      <p class="hint"><kbd>Esc</kbd> resume &middot; <kbd>M</kbd> sound</p>
+      ${PAUSE_HINT}
     </div>`;
 }
 
@@ -131,7 +141,7 @@ function endView(state: GameState): string {
       ])}
       ${record}
       <button type="button" class="btn btn-primary" data-action="play">Run again</button>
-      <p class="hint">or press <kbd>Space</kbd> &middot; ${formatTime(state.time)} on the line</p>
+      <p class="hint">${AGAIN_HINT}${formatTime(state.time)} on the line</p>
     </div>`;
 }
 

@@ -11,15 +11,15 @@ import {
   PlaneGeometry,
   SRGBColorSpace,
 } from 'three';
-import { LANES } from '../../game/config';
 import type { Station } from '../../game/route';
+import { DECK_WIDTH } from '../track';
 import { STREET_Y } from './obstacles';
 
 /** The shed's mouth sits this far before the station's distance, so you arrive inside it. */
 const MOUTH_BEFORE = 10;
 
 const SHED_LENGTH = 120;
-const SHED_RADIUS = LANES.count * LANES.width * 0.5 + 3.5;
+const SHED_RADIUS = DECK_WIDTH / 2 + 1;
 const SPRING = 5;
 
 /** An Underground-style roundel: red ring, blue bar, the station name in white. */

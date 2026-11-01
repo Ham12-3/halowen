@@ -1,7 +1,7 @@
 import { FLARE, LIVES } from '../game/config';
 import { formatDistance, formatScore, formatTime, type GameState } from '../game/GameState';
 import { STAGE_COUNT, stageEnds } from '../game/route';
-import { CLOCK_ICON, LANTERN_ICON, PUMPKIN_ICON, SOUL_ICON } from './icons';
+import { CLOCK_ICON, LANTERN_ICON, PAUSE_ICON, PUMPKIN_ICON, SOUL_ICON } from './icons';
 
 const TOAST_MS = 2200;
 
@@ -24,10 +24,13 @@ export class Hud {
   private readonly flareFill: HTMLElement;
   private readonly toastEl: HTMLDivElement;
   private readonly crashFlash: HTMLDivElement;
+  private readonly speedLines: HTMLDivElement;
+  private readonly flareGlow: HTMLDivElement;
   private toastTimer = 0;
   private last: Record<string, string | number> = {};
 
-  constructor(parent: HTMLElement) {
+  /** `onPause` runs when the on-screen pause button is pressed (for touch and mouse players). */
+  constructor(parent: HTMLElement, onPause: () => void) {
     this.root = document.createElement('div');
     this.root.className = 'hud';
     this.root.innerHTML = `
@@ -51,6 +54,7 @@ export class Hud {
         <div class="hud-route-labels"><span class="hud-from"></span><strong class="hud-remaining"></strong><span class="hud-to"></span></div>
       </div>
       <div class="hud-right">
+        <button type="button" class="hud-pause" aria-label="Pause">${PAUSE_ICON}</button>
         <div class="hud-pill hud-speed">
           <div class="hud-speed-reading"><span class="hud-speed-value"></span><span class="hud-speed-unit">km/h</span></div>
           <div class="hud-pace"><div class="hud-pace-fill"></div></div>
@@ -67,7 +71,12 @@ export class Hud {
     this.toastEl.setAttribute('aria-live', 'polite');
     this.crashFlash = document.createElement('div');
     this.crashFlash.className = 'crash-flash';
-    parent.append(this.crashFlash, this.root, this.toastEl);
+    // Faint speed streaks at the screen's edges, and a warm glow while the flare burns.
+    this.speedLines = document.createElement('div');
+    this.speedLines.className = 'speed-lines';
+    this.flareGlow = document.createElement('div');
+    this.flareGlow.className = 'flare-glow';
+    parent.append(this.speedLines, this.flareGlow, this.crashFlash, this.root, this.toastEl);
 
     const find = (selector: string): HTMLElement => {
       const found = this.root.querySelector<HTMLElement>(selector);
@@ -91,6 +100,7 @@ export class Hud {
     this.lives = Array.from(this.root.querySelectorAll<HTMLElement>('.hud-life'));
     this.flare = find('.hud-flare');
     this.flareFill = find('.hud-flare-fill');
+    find('.hud-pause').addEventListener('click', onPause);
     this.el.soulsBox.addEventListener('animationend', () => this.el.soulsBox.classList.remove('pulse'));
     this.crashFlash.addEventListener('animationend', () => this.crashFlash.classList.remove('active'));
   }
@@ -126,7 +136,15 @@ export class Hud {
     if (flare !== this.last.flare) {
       this.flare.classList.toggle('active', flare > 0);
       this.flareFill.style.transform = `scaleX(${flare})`;
+      this.flareGlow.classList.toggle('active', flare > 0);
       this.last.flare = flare;
+    }
+    // Streaks fade in as the pace picks up, only while actually running.
+    const running = state.status === 'playing';
+    const streaks = running ? Math.round(Math.max(0, state.pace - 0.15) * 20) / 20 : 0;
+    if (streaks !== this.last.streaks) {
+      this.speedLines.style.opacity = String(Math.min(0.75, streaks * 0.85));
+      this.last.streaks = streaks;
     }
   }
 

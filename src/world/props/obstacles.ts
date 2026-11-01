@@ -1,5 +1,6 @@
 import { type BufferGeometry, CylinderGeometry, SphereGeometry } from 'three';
-import { LANES, OBSTACLE, TRAIN } from '../../game/config';
+import { OBSTACLE, TRAIN } from '../../game/config';
+import { DECK_WIDTH } from '../track';
 import { box, mergeParts, solid } from './geometry';
 
 /**
@@ -35,9 +36,12 @@ export function createBarGlow(): BufferGeometry {
   ]);
 }
 
+/** A road bridge spans every track and the parapets. */
+const BRIDGE_SPAN = DECK_WIDTH + 2;
+
 /** Road bridge across the whole viaduct, deck underside at barBottom, piers down to the street. */
 export function createBridgeFrame(): BufferGeometry {
-  const span = LANES.count * LANES.width + 4;
+  const span = BRIDGE_SPAN;
   const deckY = OBSTACLE.barBottom + BAR_HEIGHT / 2;
   const brick = 0x4e3328;
   const pier = (side: number): BufferGeometry => {
@@ -55,7 +59,7 @@ export function createBridgeFrame(): BufferGeometry {
 
 /** Warning stripe under both faces of the bridge, plus lamps on its parapet. */
 export function createBridgeGlow(): BufferGeometry {
-  const span = LANES.count * LANES.width + 4;
+  const span = BRIDGE_SPAN;
   const lamps = [-0.35, 0, 0.35].map((f) =>
     solid(new CylinderGeometry(0.12, 0.12, 0.3, 8).translate(f * span, OBSTACLE.barTop + 1.0, 1.85), 0xffc46b),
   );

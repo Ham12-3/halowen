@@ -78,6 +78,11 @@ body.running {
   cursor: none;
 }
 
+/* Swipes on the game never scroll, zoom or pull-to-refresh the page. */
+canvas {
+  touch-action: none;
+}
+
 kbd {
   display: inline-grid;
   place-items: center;
@@ -641,6 +646,36 @@ kbd {
   gap: var(--space-2);
 }
 
+.hud-pause {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  color: var(--c-text);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast);
+}
+
+.hud-pause:hover {
+  border-color: var(--border-accent);
+}
+
+.hud-pause:active {
+  transform: scale(0.94);
+}
+
+.hud-pause:focus-visible {
+  outline: 3px solid var(--c-text);
+  outline-offset: 3px;
+}
+
 .hud-lives {
   display: flex;
   gap: 2px;
@@ -848,6 +883,42 @@ kbd {
   0% { opacity: 0; transform: translate(-50%, -10px) scale(0.96); }
   12%, 80% { opacity: 1; transform: translate(-50%, 0) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -6px); }
+}
+
+/* Speed streaks: thin rays from the vanishing point, masked so only the edges show. */
+.speed-lines,
+.flare-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.speed-lines {
+  background: repeating-conic-gradient(
+    from 0deg at 50% 42%,
+    rgba(255, 255, 255, 0) 0deg 3.2deg,
+    rgba(220, 230, 255, 0.16) 3.2deg 3.5deg
+  );
+  -webkit-mask-image: radial-gradient(ellipse 62% 58% at 50% 42%, transparent 55%, #000 100%);
+  mask-image: radial-gradient(ellipse 62% 58% at 50% 42%, transparent 55%, #000 100%);
+  transition: opacity var(--dur-slow);
+}
+
+/* A warm lantern glow at the edges while the flare burns. */
+.flare-glow {
+  background: radial-gradient(ellipse at center, rgba(255, 160, 40, 0) 45%, rgba(255, 150, 40, 0.32) 100%);
+  transition: opacity 0.4s;
+}
+
+.flare-glow.active {
+  opacity: 1;
+  animation: flare-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes flare-pulse {
+  to { opacity: 0.6; }
 }
 
 .crash-flash {

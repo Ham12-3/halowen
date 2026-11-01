@@ -10,16 +10,18 @@ import {
   SRGBColorSpace,
   type Texture,
 } from 'three';
-import { LANES, TRAIN } from '../game/config';
-import { laneX } from './course';
+import { TRAIN } from '../game/config';
 import { STREET_Y } from './props/obstacles';
 import { createRng } from './rng';
+import { BED_Y, createTrack, DECK_WIDTH } from './track';
 
 /** Metres of viaduct built; it slides forward in whole blocks to look endless. */
 const LENGTH = 480;
 const BEHIND = 60;
-const DECK_WIDTH = LANES.count * LANES.width + 2;
 const L = TRAIN.blockLength;
+/** Top of the brick structure, just under the ballast. */
+const DECK_TOP = BED_Y - 0.02;
+const PARAPET_HEIGHT = 1.1;
 
 function canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void): Texture {
   const canvas = document.createElement('canvas');
@@ -33,22 +35,6 @@ function canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderin
   texture.wrapS = texture.wrapT = RepeatWrapping;
   texture.anisotropy = 4;
   return texture;
-}
-
-/** Dark ballast with one timber sleeper per tile (0.7 m), across the whole deck. */
-function ballastTexture(): Texture {
-  const rng = createRng(11);
-  return canvasTexture(128, 32, (ctx) => {
-    ctx.fillStyle = '#2b2a2c';
-    ctx.fillRect(0, 0, 128, 32);
-    for (let i = 0; i < 500; i++) {
-      const v = 30 + Math.floor(rng() * 40);
-      ctx.fillStyle = `rgb(${v},${v - 2},${v - 4})`;
-      ctx.fillRect(rng() * 128, rng() * 32, 2, 2);
-    }
-    ctx.fillStyle = '#3b2c22';
-    ctx.fillRect(0, 10, 128, 12);
-  });
 }
 
 /** London stock brick, 16x8 px per brick. */
@@ -78,7 +64,7 @@ function archTexture(): Texture {
   const w = 2048;
   const h = 512;
   const pxPerMetreX = w / (2 * L);
-  const pxPerMetreY = h / -STREET_Y;
+  const pxPerMetreY = h / (DECK_TOP - STREET_Y);
   return canvasTexture(w, h, (ctx) => {
     drawBricks(ctx, w, h, 5);
     for (const [i, lit] of [[0, true], [1, false]] as const) {
@@ -99,15 +85,46 @@ function archTexture(): Texture {
   });
 }
 
+/** One tile of the streets below (two blocks square): wet asphalt, a road each way, pools of lamplight. */
+function streetTextures(): { map: Texture; glow: Texture } {
+  const size = 256;
+  const m = size / (2 * L);
+  const rng = createRng(19);
+  const map = canvasTexture(size, size, (ctx) => {
+    ctx.fillStyle = '#2a2a2e'; // pavements and yards
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#16161a'; // roads
+    ctx.fillRect(9 * m, 0, 9 * m, size);
+    ctx.fillRect(0, 2 * m, size, 9 * m);
+    for (let i = 0; i < 900; i++) {
+      ctx.fillStyle = `rgba(0,0,0,${rng() * 0.25})`;
+      ctx.fillRect(rng() * size, rng() * size, 2, 2);
+    }
+  });
+  const glow = canvasTexture(size, size, (ctx) => {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, size, size);
+    for (const [x, y] of [[8, 1], [19, 1], [8, 12], [19, 12], [8, 26], [19, 20], [3, 12], [25, 1]] as const) {
+      const pool = ctx.createRadialGradient(x * m, y * m, 0, x * m, y * m, 4.5 * m);
+      pool.addColorStop(0, 'rgba(255,170,90,0.85)');
+      pool.addColorStop(0.35, 'rgba(255,140,60,0.35)');
+      pool.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = pool;
+      ctx.fillRect(0, 0, size, size);
+    }
+  });
+  return { map, glow };
+}
+
 function repeat(texture: Texture, x: number, y: number): Texture {
   texture.repeat.set(x, y);
   return texture;
 }
 
 /**
- * The railway viaduct: ballast, sleepers and three pairs of rails on a brick
- * deck with parapets, brick arches below and the street beneath. Built once,
- * then shifted a block at a time to follow the runner.
+ * The railway viaduct: five tracks (see track.ts) on a brick deck with
+ * parapets and coping, brick arches below and the street beneath. Built once,
+ * then shifted two blocks at a time to follow the runner.
  */
 export function createViaduct(): { group: Group; update(distance: number): void } {
   const group = new Group();
@@ -119,22 +136,35 @@ export function createViaduct(): { group: Group; update(distance: number): void 
     group.add(mesh);
   };
 
-  const deck = new PlaneGeometry(DECK_WIDTH, LENGTH).rotateX(-Math.PI / 2);
-  add(deck, new MeshStandardMaterial({ map: repeat(ballastTexture(), 1, LENGTH / 0.7), roughness: 1 }), 0, 0);
-
-  const rail = new MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.8, roughness: 0.35 });
-  for (let lane = 0; lane < LANES.count; lane++) {
-    for (const side of [-1, 1]) add(new BoxGeometry(0.08, 0.16, LENGTH), rail, laneX(lane) + side * 0.72, 0.08);
-  }
+  const track = createTrack(LENGTH);
+  track.position.z = centreZ;
+  group.add(track);
 
   const parapet = new MeshStandardMaterial({ map: repeat(parapetTexture(), LENGTH / 4, 1), roughness: 0.95 });
-  for (const side of [-1, 1]) add(new BoxGeometry(0.45, 1.1, LENGTH), parapet, side * (DECK_WIDTH / 2 + 0.22), 0.55);
+  const wallHeight = PARAPET_HEIGHT - DECK_TOP;
+  for (const side of [-1, 1]) add(new BoxGeometry(0.45, wallHeight, LENGTH), parapet, side * (DECK_WIDTH / 2 + 0.22), DECK_TOP + wallHeight / 2);
+  const coping = new MeshStandardMaterial({ color: 0x8e8a82, roughness: 0.6 });
+  for (const side of [-1, 1]) add(new BoxGeometry(0.6, 0.1, LENGTH), coping, side * (DECK_WIDTH / 2 + 0.22), PARAPET_HEIGHT + 0.05);
 
   const arches = new MeshStandardMaterial({ map: repeat(archTexture(), LENGTH / (2 * L), 1), roughness: 0.95 });
-  add(new BoxGeometry(DECK_WIDTH + 0.9, -STREET_Y, LENGTH), arches, 0, STREET_Y / 2 - 0.01);
+  add(new BoxGeometry(DECK_WIDTH + 0.9, DECK_TOP - STREET_Y, LENGTH), arches, 0, (STREET_Y + DECK_TOP) / 2);
 
+  // The streets: a grid of roads, wet enough to catch the city's reflection, lamplight pooling on them.
+  const streets = streetTextures();
+  const tiles = [400 / (2 * L), LENGTH / (2 * L)] as const;
   const street = new PlaneGeometry(400, LENGTH).rotateX(-Math.PI / 2);
-  add(street, new MeshStandardMaterial({ color: 0x141418, roughness: 1 }), 0, STREET_Y);
+  add(
+    street,
+    new MeshStandardMaterial({
+      map: repeat(streets.map, ...tiles),
+      emissiveMap: repeat(streets.glow, ...tiles),
+      emissive: 0xffffff,
+      emissiveIntensity: 1.3,
+      roughness: 0.45,
+    }),
+    0,
+    STREET_Y,
+  );
 
   return {
     group,

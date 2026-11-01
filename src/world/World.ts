@@ -1,12 +1,15 @@
-import type { Camera, Group, Scene } from 'three';
+import type { Camera, Group, Scene, WebGLRenderer } from 'three';
+import { ATMOSPHERE } from '../game/config';
 import { STATIONS } from '../game/route';
 import { createAtmosphere } from './atmosphere';
 import type { Course } from './course';
 import { CourseView } from './CourseView';
+import { createNightEnvironment } from './environment';
 import { GhostsView } from './GhostsView';
 import { createLighting } from './lighting';
 import { PickupsView } from './PickupsView';
-import { createLondonEye, createShard } from './props/landmarks';
+import { createLondonEye } from './props/landmarks';
+import { createShard } from './props/shard';
 import { createStation } from './props/station';
 import { createStPauls } from './props/stPauls';
 import { createTowerBridge } from './props/towerBridge';
@@ -32,10 +35,15 @@ export class World {
   private readonly skyline = new Skyline();
   private readonly viaduct = createViaduct();
   private readonly sky: Group;
+  private readonly updateSky: (elapsed: number) => void;
   private readonly eyeWheel: Group;
 
-  constructor(scene: Scene) {
-    this.sky = createAtmosphere(scene);
+  constructor(scene: Scene, renderer: WebGLRenderer) {
+    const atmosphere = createAtmosphere(scene);
+    this.sky = atmosphere.sky;
+    this.updateSky = atmosphere.update;
+    scene.environment = createNightEnvironment(renderer);
+    scene.environmentIntensity = ATMOSPHERE.reflections;
     const eye = createLondonEye();
     this.eyeWheel = eye.wheel;
     scene.add(
@@ -72,5 +80,6 @@ export class World {
     this.eyeWheel.rotation.z += EYE_SPIN * dt;
     // Keep the sky dome centred on the camera so it always reads as infinitely far.
     this.sky.position.copy(camera.position);
+    this.updateSky(elapsed);
   }
 }

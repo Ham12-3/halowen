@@ -1,8 +1,6 @@
 import {
   AdditiveBlending,
   type BufferGeometry,
-  CanvasTexture,
-  ConeGeometry,
   CylinderGeometry,
   Group,
   Mesh,
@@ -11,7 +9,6 @@ import {
   SphereGeometry,
   Sprite,
   SpriteMaterial,
-  SRGBColorSpace,
   TorusGeometry,
 } from 'three';
 import { mergeParts, paint } from './geometry';
@@ -19,8 +16,6 @@ import { getGlowTexture } from './glowTexture';
 import { STREET_Y } from './obstacles';
 import { SITES } from './sites';
 
-/** The Shard stands ahead and to the left at the start, inside the camera's view. */
-const SHARD = { ...SITES.shard, height: 300 };
 const EYE = { ...SITES.eye, radius: 60, hubHeight: 70 };
 
 /** An additive glow sprite, unfogged so it reads from far away. Shared by the landmark builders. */
@@ -30,58 +25,6 @@ export function glow(color: number, size: number): Sprite {
   );
   sprite.scale.setScalar(size);
   return sprite;
-}
-
-/** Bands of lit floors climbing the Shard's glass. */
-function shardTexture(): CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('2D canvas unavailable');
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, 64, 512);
-  for (let y = 0; y < 512; y += 6) {
-    for (let x = 0; x < 64; x += 4) {
-      if (Math.random() < 0.28) {
-        ctx.fillStyle = Math.random() < 0.8 ? '#cfe2ff' : '#ffc37a';
-        ctx.fillRect(x, y, 3, 3);
-      }
-    }
-  }
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  return texture;
-}
-
-/** The Shard: a four-sided glass spike whose top splinters into shards, with a beacon. */
-export function createShard(): Group {
-  const group = new Group();
-  const h = SHARD.height;
-  const body = new ConeGeometry(30, h * 0.9, 4, 1, true).rotateY(Math.PI / 4).translate(0, (h * 0.9) / 2, 0);
-  const glass = new MeshStandardMaterial({
-    color: 0x5c6c88,
-    metalness: 0.7,
-    roughness: 0.25,
-    emissive: 0xffffff,
-    emissiveMap: shardTexture(),
-    emissiveIntensity: 0.9,
-  });
-  group.add(new Mesh(body, glass));
-  // The splintered crown: four slim shards leaning out from the top.
-  const crown: BufferGeometry[] = [0, 1, 2, 3].map((i) => {
-    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    const shard = new ConeGeometry(2.2, h * 0.16, 3).rotateZ(0.04).rotateY(a);
-    shard.translate(Math.cos(a) * 2.2, h * 0.86 + (i % 2) * 6, Math.sin(a) * 2.2);
-    shard.deleteAttribute('uv');
-    return paint(shard, 0x7d8ca8);
-  });
-  group.add(new Mesh(mergeParts(crown), new MeshStandardMaterial({ vertexColors: true, metalness: 0.7, roughness: 0.3 })));
-  const beacon = glow(0xff6a2a, 40);
-  beacon.position.y = h * 0.97;
-  group.add(beacon);
-  group.position.set(SHARD.x, STREET_Y, -SHARD.at);
-  return group;
 }
 
 /** The London Eye: rim, spokes, lit pods and an A-frame. Returns the wheel to spin. */

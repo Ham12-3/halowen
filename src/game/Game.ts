@@ -6,6 +6,7 @@ import { Hud } from '../ui/Hud';
 import { Screens } from '../ui/Screens';
 import { Course } from '../world/course';
 import { banishGhosts } from '../world/hazards';
+import { Particles } from '../world/Particles';
 import { World } from '../world/World';
 import { ChaseCamera } from './ChaseCamera';
 import { FLARE } from './config';
@@ -13,18 +14,21 @@ import { checkContacts } from './contacts';
 import { type CrashCause, GameState } from './GameState';
 import { Input } from './Input';
 import { Loop } from './Loop';
+import { RenderPipeline } from './postfx';
 import { createRenderer } from './renderer';
 import { RunFeedback } from './RunFeedback';
 
 /** Owns the renderer and wires the course, world, runner, camera, input, UI and sound together. */
 export class Game {
   private readonly renderer: WebGLRenderer;
+  private readonly pipeline: RenderPipeline;
   private readonly scene = new Scene();
-  private readonly input = new Input();
+  private readonly input: Input;
   private readonly camera: ChaseCamera;
   private readonly world: World;
   private readonly course = new Course();
   private readonly runner = new Runner();
+  private readonly particles = new Particles();
   private readonly state = new GameState();
   private readonly sound = new Sound();
   private readonly hud: Hud;
@@ -36,11 +40,13 @@ export class Game {
 
   constructor(container: HTMLElement) {
     this.renderer = createRenderer(container);
-    this.world = new World(this.scene);
-    this.scene.add(this.runner.root);
+    this.pipeline = new RenderPipeline(this.renderer);
+    this.input = new Input(this.renderer.domElement);
+    this.world = new World(this.scene, this.renderer);
+    this.scene.add(this.runner.root, this.particles.points);
     this.camera = new ChaseCamera(window.innerWidth / window.innerHeight);
-    this.hud = new Hud(container);
-    this.feedback = new RunFeedback(this.sound, this.hud);
+    this.hud = new Hud(container, () => this.pause());
+    this.feedback = new RunFeedback(this.sound, this.hud, this.particles, this.camera);
     this.screens = new Screens(container, {
       onPlay: () => this.play(),
       onRestart: () => this.play(true),
@@ -103,7 +109,7 @@ export class Game {
     this.screens.update(this.state, this.paused, this.sound.isMuted);
     this.hud.setVisible(this.state.status !== 'ready');
     document.body.classList.toggle('running', this.state.status === 'playing' && !this.paused);
-    this.renderer.render(this.scene, this.camera.camera);
+    this.pipeline.render(this.scene, this.camera.camera, elapsed, dt);
     this.fps.tick(dt);
     this.input.endFrame();
   };
@@ -133,26 +139,28 @@ export class Game {
       this.course.update(state.distance);
       const events = this.runner.run(dt, elapsed, this.input.actions(), state.distance, state.speed, this.course);
       const contacts = checkContacts(this.runner, this.course, state.distance, state.flaring);
+      const at = this.runner.position;
       state.collect(contacts.souls);
       if (contacts.lanterns > 0) {
         state.startFlare();
-        this.feedback.flare();
+        this.feedback.flare(at);
       }
       if (state.flaring) {
         const banished = banishGhosts(this.course, state.distance, FLARE.reach);
-        state.banish(banished);
-        if (banished > 0) this.feedback.banished();
+        state.banish(banished.length);
+        this.feedback.banished(banished, state.distance);
       }
       // The flare blazes the lantern while it burns.
       this.runner.lantern.flash = state.flaring ? 0.3 + Math.sin(elapsed * 9) * 0.06 : 0;
 
       const hit = events.fell ? 'fell' : contacts.hit;
-      if (state.isOver) this.feedback.arrived(); // advance() ended the run at the last station
+      if (state.isOver) this.feedback.arrived(at); // advance() ended the run at the last station
       else if (hit) this.loseLife(hit);
-      else this.feedback.step(events, contacts.souls, station, state, this.course, this.runner.position.x);
+      else this.feedback.step(events, contacts.souls, station, state, this.course, at);
     } else {
       this.runner.idle(dt, elapsed);
     }
+    this.particles.update(dt);
     this.camera.update(dt, this.runner.position, state.pace);
     this.world.update(dt, elapsed, this.camera.camera, state.distance, this.course);
     this.hud.update(state);
@@ -163,15 +171,15 @@ export class Game {
     const fell = cause === 'fell';
     if (this.state.loseLife(cause)) {
       this.runner.knockOut(fell);
-      this.feedback.crashed(cause);
+      this.feedback.crashed(cause, this.runner.position);
       return;
     }
+    this.feedback.hurt(cause, this.state.lives, this.runner.position);
     this.runner.recover(fell, this.course, this.state.distance);
-    this.feedback.hurt(cause, this.state.lives);
   }
 
   private readonly onResize = (): void => {
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.pipeline.setSize(window.innerWidth, window.innerHeight);
     this.camera.setAspect(window.innerWidth / window.innerHeight);
   };
 }

@@ -63,16 +63,16 @@ export const COURSE = {
   ahead: 22,
   behind: 3,
   /** Chance per block that a train ends (its lane empties), at the start and at full difficulty. */
-  endChance: [0.05, 0.14],
+  endChance: [0.05, 0.11],
   /** Chance a roofed block carries an obstacle, at the start and at full difficulty. */
-  obstacleChance: [0.22, 0.5],
+  obstacleChance: [0.22, 0.45],
   /** Chance a block gets a road bridge across every lane (slide under it). */
   bridgeChance: [0.04, 0.1],
   /** Distance over which the difficulty ramps up from start to full. */
-  rampDistance: 3000,
-  /** Hazard-free track before and after each station. */
+  rampDistance: 3600,
+  /** Hazard-free track before and after each station (a breather after each checkpoint). */
   stationCalmBefore: 90,
-  stationCalmAfter: 40,
+  stationCalmAfter: 70,
 } as const;
 
 /**
@@ -87,7 +87,7 @@ export const ROUTE = {
     { name: 'Tower Hill', at: 6600 },
   ],
   /** Top speed (m/s) on each stage: the line gets faster after every station. */
-  stageSpeeds: [20, 23, 26],
+  stageSpeeds: [19, 22, 24],
   /** Where the line crosses the Thames: [from, to] distances. */
   rivers: [
     [3540, 3790],
@@ -127,7 +127,7 @@ export const GHOST = {
   /** No ghosts before this distance, to let the player settle in. */
   firstAt: 350,
   /** Chance per block of a ghost, at the start and at full difficulty. */
-  chance: [0.07, 0.22],
+  chance: [0.07, 0.18],
   /** Share of ghosts that swoop into a neighbouring lane as you approach. */
   swoopShare: 0.45,
   /** A swoop starts when the runner is this far from the ghost and takes this much of their travel. */
@@ -172,10 +172,18 @@ export const CAMERA = {
 } as const;
 
 export const ATMOSPHERE = {
-  fogColor: 0x1d1b30,
-  /** Light enough that London's landmarks loom out of the mist. */
-  fogDensity: 0.0085,
-  skyZenith: 0x04050f,
+  /** The haze and the sky at the horizon: city light caught in the damp air. */
+  fogColor: 0x4a3d44,
+  /** Haze everywhere, thin enough that London's landmarks loom out of it (per metre). */
+  fogDensity: 0.0024,
+  /** Ground mist per metre at street level, and how quickly it thins with height (per metre). */
+  mistDensity: 0.022,
+  mistFalloff: 0.075,
+  skyZenith: 0x060914,
+  /** Sodium and LED light from the streets, lighting the low sky and the clouds from below. */
+  cityGlow: 0x7a4a2c,
+  /** Overall environment reflection strength (glass, paint, rails, wet roofs). */
+  reflections: 0.35,
   /** Direction the moonlight comes from (normalised in lighting.ts). */
   moonLightDir: { x: -0.4, y: 0.62, z: -0.68 },
   /** The visible moon sits lower than the light so it shows up in frame. */
@@ -184,4 +192,16 @@ export const ATMOSPHERE = {
 
 export const RENDER = {
   maxPixelRatio: 1.5,
+  /** The scene renders at down to this share of the canvas resolution when frames run slow. */
+  minScale: 0.6,
+  exposure: 0.9,
+  /** S-curve mixed in after tone mapping (0 = none). */
+  contrast: 0.45,
+  /** Only light brighter than this (in linear HDR) blooms: lamps, lit windows, the moon. */
+  bloomThreshold: 1.1,
+  bloomSoftness: 0.35,
+  bloomStrength: 0.38,
+  bloomRadius: 0.15,
+  vignette: 0.55,
+  grain: 0.035,
 } as const;

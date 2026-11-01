@@ -77,6 +77,12 @@ export const ROUNDEL_ICON = `
     <rect x="2" y="16.5" width="36" height="7" fill="#2a4fd0"/>
   </svg>`;
 
+export const PAUSE_ICON = `
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"/>
+    <rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"/>
+  </svg>`;
+
 export const SOUND_ON_ICON = `
   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
     <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>

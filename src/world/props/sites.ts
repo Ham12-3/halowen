@@ -25,7 +25,7 @@ const FOOTPRINTS = [
 ];
 
 /** Station sheds and their forecourts span this far either side of the track. */
-const STATION_HALF_WIDTH = 46;
+const STATION_HALF_WIDTH = 22;
 
 /** True if a building of radius `r` centred at world (x, z) keeps clear of the landmarks, stations and river. */
 export function landmarkClear(x: number, z: number, r: number): boolean {
