@@ -1,16 +1,19 @@
 import { ROUND } from './config';
 
-export type RoundStatus = 'playing' | 'won' | 'timeUp';
+export type RoundStatus = 'playing' | 'won' | 'timeUp' | 'dead';
 
-/** Score, countdown and outcome for one round. */
+/** Score, lives, countdown and outcome for one round. */
 export class GameState {
   readonly target: number = ROUND.candles;
+  readonly maxLives: number = ROUND.lives;
   score = 0;
+  lives: number = ROUND.lives;
   timeLeft: number = ROUND.timeLimit;
   status: RoundStatus = 'playing';
 
   reset(): void {
     this.score = 0;
+    this.lives = ROUND.lives;
     this.timeLeft = ROUND.timeLimit;
     this.status = 'playing';
   }
@@ -29,6 +32,12 @@ export class GameState {
     if (this.status !== 'playing') return;
     this.score = Math.min(this.score + 1, this.target);
     if (this.score === this.target) this.status = 'won';
+  }
+
+  loseLife(): void {
+    if (this.status !== 'playing') return;
+    this.lives = Math.max(0, this.lives - 1);
+    if (this.lives === 0) this.status = 'dead';
   }
 }
 

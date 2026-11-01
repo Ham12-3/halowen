@@ -15,6 +15,7 @@ export class LockPrompt {
     this.el.innerHTML = `
       <h1>Pumpkin Hollow</h1>
       <p class="goal">Gather the ${ROUND.candles} soul candles before the church bell tolls midnight</p>
+      <p>Ghosts roam the graves &mdash; their eyes burn red when they hunt you. ${ROUND.lives} lives.</p>
       <p>Click to play</p>
       <p>WASD to move &middot; Mouse to look &middot; Esc to pause</p>
     `;

@@ -12,10 +12,15 @@ export const PLAYER = {
   walkSpeed: 4.2,
   /** How quickly velocity reaches the target speed (higher = snappier). */
   acceleration: 14,
+  /** Seconds of blinking invulnerability after a ghost touches you. */
+  hitInvulnerability: 2,
+  /** Speed of the shove away from the ghost that touched you. */
+  knockback: 9,
 } as const;
 
 export const ROUND = {
   candles: 10,
+  lives: 3,
   /** Seconds until the church bell tolls midnight. */
   timeLimit: 180,
   /** The timer turns red and pulses below this many seconds. */
@@ -32,6 +37,27 @@ export const CANDLE = {
   /** Point lights are lent to the nearest candles; this is their full brightness. */
   lightIntensity: 5,
   lightRange: 9,
+} as const;
+
+export const GHOST = {
+  count: 6,
+  radius: 0.5,
+  hoverHeight: 0.35,
+  wanderSpeed: 1.5,
+  /** Slower than the player's walk so a chase can always be escaped. */
+  chaseSpeed: 3.0,
+  retreatSpeed: 4,
+  /** Start chasing inside this distance... */
+  detectRadius: 9,
+  /** ...and give up beyond this one (the gap stops them flip-flopping). */
+  loseRadius: 13,
+  /** Seconds a ghost flees after touching the player. */
+  retreatTime: 2.5,
+  /** How quickly ghosts steer towards their desired velocity. */
+  agility: 2.5,
+  minSpawnDistance: 20,
+  /** Ghosts closer than this push apart so they don't stack up. */
+  separation: 1.8,
 } as const;
 
 export const CAMERA = {

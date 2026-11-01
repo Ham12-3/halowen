@@ -181,7 +181,49 @@ canvas {
   opacity: 0.75;
 }
 
+.hud-lives {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(6, 10, 20, 0.55);
+  border: 1px solid rgba(255, 150, 60, 0.25);
+}
+
+.hud-life {
+  display: flex;
+  filter: drop-shadow(0 0 6px rgba(255, 140, 40, 0.7));
+  transition: filter 0.3s, opacity 0.3s, transform 0.3s;
+}
+
+.hud-life.lost {
+  filter: grayscale(1) brightness(0.45);
+  opacity: 0.45;
+  transform: scale(0.85);
+}
+
+.hurt-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(160, 0, 20, 0) 35%, rgba(190, 0, 25, 0.65) 100%);
+}
+
+.hurt-flash.active {
+  animation: hurt-flash 0.8s ease-out;
+}
+
+@keyframes hurt-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 @media (max-width: 520px) {
   .hud-souls { font-size: 18px; }
   .hud-timer { font-size: 24px; }
+  .hud-life svg { width: 22px; height: 21px; }
 }

@@ -14,6 +14,8 @@ export interface PlayerModel {
   body: Group;
   /** Attach point for the lantern handle, in body space. */
   hand: Group;
+  /** The figure's own meshes (not the lantern), toggled to blink when hurt. */
+  meshes: Mesh[];
 }
 
 /** A small hooded wanderer with glowing eyes, built from primitives. Faces -Z. */
@@ -53,6 +55,7 @@ export function createPlayerModel(): PlayerModel {
   hand.position.set(0.36, 0.9, -0.42);
 
   for (const mesh of [robe, hood, hoodTip, arm]) mesh.castShadow = true;
-  body.add(robe, hood, hoodTip, face, ...eyes, arm, hand);
-  return { body, hand };
+  const meshes = [robe, hood, hoodTip, face, ...eyes, arm];
+  body.add(...meshes, hand);
+  return { body, hand, meshes };
 }

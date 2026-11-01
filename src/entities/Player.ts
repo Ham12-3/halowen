@@ -1,4 +1,4 @@
-import { Group, Vector3 } from 'three';
+import { Group, type Mesh, Vector3 } from 'three';
 import { PLAYER } from '../game/config';
 import type { MoveAxis } from '../game/Input';
 import type { World } from '../world/World';
@@ -6,6 +6,7 @@ import { Lantern } from './Lantern';
 import { createPlayerModel } from './playerModel';
 
 const WALK_CYCLE_SPEED = 9;
+const BLINKS_PER_SECOND = 12;
 
 /** The lantern bearer. Faces the camera yaw; WASD moves relative to it. */
 export class Player {
@@ -15,12 +16,15 @@ export class Player {
   readonly lantern = new Lantern();
 
   private readonly body: Group;
+  private readonly meshes: Mesh[];
   private walkPhase = 0;
+  private invulnerable = 0;
   private readonly wish = new Vector3();
 
   constructor() {
     const model = createPlayerModel();
     this.body = model.body;
+    this.meshes = model.meshes;
     model.hand.add(this.lantern.group);
     this.root.add(this.body);
   }
@@ -29,12 +33,32 @@ export class Player {
     return this.root.position;
   }
 
+  /** False during the grace period after being touched. */
+  get canBeHurt(): boolean {
+    return this.invulnerable <= 0;
+  }
+
   respawn(x: number, z: number): void {
     this.position.set(x, 0, z);
     this.velocity.set(0, 0, 0);
+    this.invulnerable = 0;
+    this.setVisible(true);
+  }
+
+  /** Shoves the player away from (fromX, fromZ) and starts the invulnerability blink. */
+  hurt(fromX: number, fromZ: number): void {
+    const dx = this.position.x - fromX;
+    const dz = this.position.z - fromZ;
+    const len = Math.hypot(dx, dz) || 1;
+    this.velocity.set((dx / len) * PLAYER.knockback, 0, (dz / len) * PLAYER.knockback);
+    this.invulnerable = PLAYER.hitInvulnerability;
   }
 
   update(dt: number, elapsed: number, move: MoveAxis, yaw: number, world: World): void {
+    if (this.invulnerable > 0) {
+      this.invulnerable = Math.max(0, this.invulnerable - dt);
+      this.setVisible(this.invulnerable === 0 || Math.floor(this.invulnerable * BLINKS_PER_SECOND) % 2 === 0);
+    }
     this.root.rotation.y = yaw;
 
     // Forward is -Z rotated by yaw; right is +X rotated by yaw.
@@ -50,6 +74,11 @@ export class Player {
     world.collide(this.position, this.radius);
 
     this.animate(dt, elapsed);
+  }
+
+  /** Hides only the figure; the lantern stays lit so the scene's light count never changes. */
+  private setVisible(visible: boolean): void {
+    for (const mesh of this.meshes) mesh.visible = visible;
   }
 
   private animate(dt: number, elapsed: number): void {

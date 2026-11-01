@@ -33,7 +33,7 @@ src/
   style.css               overlay / HUD styles
   game/                   loop, input, camera, round state, config
     Game.ts               owns renderer + scene; frame() renders, simulate() advances play
-    GameState.ts          score, countdown, round status (playing / won / timeUp)
+    GameState.ts          score, lives, countdown, round status (playing / won / timeUp / dead)
     Loop.ts               rAF loop with clamped delta
     Input.ts              keyboard state + pointer-locked mouse look
     ThirdPersonCamera.ts  camera locked behind the player, pulls in before tall obstacles
@@ -51,11 +51,14 @@ src/
     props/                geometry builders (tombstones, trees, fence, pumpkins,
                           crypt, houses, church, stained glass, glow texture)
   entities/
-    Player.ts, playerModel.ts, Lantern.ts
+    Player.ts, playerModel.ts, Lantern.ts   (Player also owns hurt knockback + blink)
     Candles.ts            the round's soul candles: spawn, bob, pickup, light pool
     candleModel.ts        candle/flame geometry and materials
+    Ghosts.ts             the ghost pack: spawn, movement, touch detection, instanced drawing
+    ghostBrain.ts         per-ghost state machine (wander / chase / retreat) + separation
+    ghostModel.ts         bedsheet ghost body, face, translucent materials
   ui/
-    Hud.ts                souls counter, midnight countdown, end-of-round banner
+    Hud.ts                souls, pumpkin lives, countdown, hurt flash, end-of-round banner
     LockPrompt.ts         click-to-play overlay (shown while paused)
     FpsMeter.ts           dev frame-rate / draw-call meter
 ```
@@ -70,8 +73,15 @@ src/
   limit, `CANDLE` for pickup reach, spacing and glow), not in entity code.
 - **Pause:** the game only simulates while the mouse is captured; releasing it
   (Esc) shows the overlay and freezes the timer. `frame()` always renders.
-- **Round flow:** collect all candles = `won`; timer hits 0 = `timeUp`. Either
-  shows the HUD banner; R restarts with freshly scattered candles.
+- **Round flow:** collect all candles = `won`; timer hits 0 = `timeUp`; last life
+  lost = `dead`. Each shows the HUD banner; R restarts with fresh candles and ghosts.
+- **Ghosts** float through graves and trees (only the fence bounds them). They
+  wander, chase inside `GHOST.detectRadius`, give up beyond `loseRadius`, and flee
+  for `retreatTime` after any touch. A touch costs a life only when
+  `player.canBeHurt` (2 s blinking grace after a hit). Chase speed stays below
+  the player's walk speed so a chase can always be escaped.
+- **Never hide or add lights mid-game** (e.g. the lantern during the hurt blink):
+  only the figure's meshes blink, so the light count, and the shaders, stay stable.
 - **Procedural layout** is seeded (`WORLD.seed`), so the map is identical every run.
 - **Performance target:** 60 fps on a mid-range laptop. Use `InstancedMesh` (see
   `props/geometry.ts` `instance()` and `mergeParts()`) for anything repeated. Keep
@@ -84,7 +94,9 @@ src/
 - Click the page to capture the mouse (pointer lock); Esc releases it.
 - Backquote (`) toggles the FPS / draw-call / triangle meter.
 - In dev, `window.game` exposes the running game for console poking, e.g.
-  `game.player.respawn(0, -10)`, `game.cameraRig.yaw = Math.PI`, `game.state.timeLeft = 5`.
+  `game.player.respawn(0, -10)`, `game.cameraRig.yaw = Math.PI`, `game.state.timeLeft = 5`,
+  `game.ghosts.list[0]` (fields x, z, mode). `restart()` replaces the ghost and
+  candle arrays, so re-read `game.ghosts.list` after restarting.
 - The automated browser pane cannot capture the mouse, so the game stays paused
   there. Drive it by stepping manually, mirroring the real frame loop:
   `game.simulate(1 / 60, t); game.input.endFrame();` (skipping `endFrame` leaves
@@ -96,6 +108,6 @@ src/
 
 1. **Done:** scene, fog, lighting, churchyard + French old town, player movement, camera follow
 2. **Done:** soul candles to collect, score, midnight timer, HUD, win/time-up banner, R to restart
-3. Ghost AI (wander, chase when close), lives, game over
+3. **Done:** ghost AI (wander, chase when close, retreat after a touch), 3 lives, hurt feedback, game over
 4. Lantern flare and shrines, start/pause/win screens, sound
 5. Polish (particles, ghost glow, screen shake, difficulty tuning)
