@@ -60,6 +60,35 @@ export const GHOST = {
   separation: 1.8,
 } as const;
 
+export const FLARE = {
+  maxFuel: 100,
+  /** Oil spent per flare: three flares from a full lantern. */
+  cost: 30,
+  /** Oil the lantern burns per second just by staying lit. */
+  burnRate: 0.25,
+  /** The lantern starts to dim below this much oil. */
+  dimBelow: 35,
+  cooldown: 1.2,
+  /** Ghosts inside this radius are blown back. */
+  radius: 7,
+  /** Speed of the shove at the centre of the flare (half that at its edge). */
+  push: 10,
+  /** Seconds a flared ghost keeps fleeing. */
+  scareTime: 3.5,
+} as const;
+
+export const SHRINE = {
+  /** Stand this close to a lit shrine to refill the lantern. */
+  useRadius: 1.7,
+  /**
+   * A shrine is only spent if the lantern is missing at least this much oil, so
+   * strolling past one after a little idle burn doesn't waste it for 30 s.
+   */
+  minRefill: 25,
+  /** Seconds a spent shrine takes to relight. */
+  rechargeTime: 30,
+} as const;
+
 export const CAMERA = {
   fov: 60,
   near: 0.1,
@@ -71,6 +100,10 @@ export const CAMERA = {
   minPitch: -0.2,
   maxPitch: 1.1,
   mouseSensitivity: 0.0022,
+  /** A/D turning speed in radians per second (a quarter turn takes ~0.6 s). */
+  turnSpeed: 2.6,
+  /** How quickly keyboard turning eases in (higher = snappier); it eases out 3x faster. */
+  turnSharpness: 12,
   /** How tightly the camera follows the player (higher = less lag). */
   followSharpness: 12,
   minHeight: 0.4,

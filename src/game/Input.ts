@@ -5,13 +5,16 @@ const MAX_MOUSE_DELTA = 250;
 const CAPTURED_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 export interface MoveAxis {
-  /** -1 = strafe left, 1 = strafe right. */
+  /** -1 = turn left, 1 = turn right (A/D or arrows). */
   x: number;
-  /** -1 = backwards, 1 = forwards. */
+  /** -1 = walk backwards, 1 = walk forwards (W/S or arrows). */
   y: number;
 }
 
-/** Keyboard state plus pointer-locked mouse look. Keys are KeyboardEvent.code values. */
+/**
+ * Keyboard state plus pointer-locked mouse look. Keys are KeyboardEvent.code
+ * values; clicks while the mouse is captured register as 'Mouse0', 'Mouse1'...
+ */
 export class Input {
   private readonly down = new Set<string>();
   private readonly pressed = new Set<string>();
@@ -24,6 +27,7 @@ export class Input {
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
     document.addEventListener('mousemove', this.onMouseMove);
+    document.addEventListener('mousedown', this.onMouseDown);
     document.addEventListener('pointerlockchange', this.handleLockChange);
   }
 
@@ -90,6 +94,10 @@ export class Input {
     if (Math.abs(e.movementX) > MAX_MOUSE_DELTA || Math.abs(e.movementY) > MAX_MOUSE_DELTA) return;
     this.mouseDX += e.movementX;
     this.mouseDY += e.movementY;
+  };
+
+  private readonly onMouseDown = (e: MouseEvent): void => {
+    if (this.pointerLocked) this.pressed.add(`Mouse${e.button}`);
   };
 
   private readonly handleLockChange = (): void => {

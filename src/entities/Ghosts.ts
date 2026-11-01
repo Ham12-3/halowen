@@ -18,6 +18,8 @@ const FACE_SCARED = new Color(0x26406e);
  */
 export class Ghosts {
   readonly group = new Group();
+  /** Ghosts that started hunting the player during the last update. */
+  readonly spotted: Ghost[] = [];
   private ghosts: Ghost[] = [];
   private readonly bodies: InstancedMesh;
   private readonly faces: InstancedMesh;
@@ -59,6 +61,26 @@ export class Ghosts {
   }
 
   /**
+   * Shoves every ghost within `radius` of `from` outwards (`push` at the centre,
+   * half that at the edge) and sends it fleeing for `seconds`. Returns the count.
+   */
+  repel(from: Vector3, radius: number, push: number, seconds: number): number {
+    let hit = 0;
+    for (const g of this.ghosts) {
+      const dx = g.x - from.x;
+      const dz = g.z - from.z;
+      const d = Math.hypot(dx, dz);
+      if (d > radius) continue;
+      const strength = push * (1 - (d / radius) * 0.5);
+      g.vx = (dx / (d || 1)) * strength;
+      g.vz = (dz / (d || 1)) * strength;
+      startRetreat(g, seconds);
+      hit++;
+    }
+    return hit;
+  }
+
+  /**
    * Runs AI and movement, then redraws. Returns the first ghost touching the
    * player this frame, or null. While `hunting` is false ghosts just wander.
    */
@@ -66,7 +88,12 @@ export class Ghosts {
     const reach = PLAYER.radius + GHOST.radius;
     let toucher: Ghost | null = null;
 
-    for (const g of this.ghosts) think(g, dt, player, hunting, this.rng);
+    this.spotted.length = 0;
+    for (const g of this.ghosts) {
+      const before = g.mode;
+      think(g, dt, player, hunting, this.rng);
+      if (g.mode === 'chase' && before !== 'chase') this.spotted.push(g);
+    }
     separate(this.ghosts, dt);
 
     this.ghosts.forEach((g, i) => {

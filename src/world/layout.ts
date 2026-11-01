@@ -11,6 +11,21 @@ export const CRYPT = { x: 0, z: -WORLD.halfSize + 11, width: 7, depth: 6, height
 
 export const GATE = { x: 0, z: WORLD.halfSize, halfWidth: 2.4 };
 
+export interface ShrineSpot {
+  x: number;
+  z: number;
+  /** Turns the jack-o'-lantern's face towards the nearest path. */
+  rotY: number;
+}
+
+/** Pumpkin shrines that refill the lantern, one in each part of the churchyard. */
+export const SHRINES: readonly ShrineSpot[] = [
+  { x: -21, z: 1.3, rotY: Math.PI }, // west, facing the cross path
+  { x: 24, z: 6.7, rotY: 0 }, // east, facing the cross path
+  { x: -3.9, z: -13, rotY: -Math.PI / 2 }, // north, beside the main path
+  { x: 3.9, z: 16, rotY: Math.PI / 2 }, // south, beside the main path
+];
+
 interface PathSegment {
   ax: number;
   az: number;
@@ -44,6 +59,11 @@ export function pathDistance(x: number, z: number): number {
   let best = Infinity;
   for (const s of PATHS) best = Math.min(best, distanceToSegment(x, z, s) - s.halfWidth);
   return best;
+}
+
+/** True if (x, z) is within `radius` of any shrine. */
+export function nearShrine(x: number, z: number, radius: number): boolean {
+  return SHRINES.some((s) => Math.hypot(x - s.x, z - s.z) < radius);
 }
 
 /** True if (x, z) is inside the crypt footprint expanded by `margin`. */

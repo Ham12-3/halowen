@@ -1,6 +1,7 @@
 import { ROUND } from './config';
 
-export type RoundStatus = 'playing' | 'won' | 'timeUp' | 'dead';
+/** `ready` = title screen before the round starts; the last three end the round. */
+export type RoundStatus = 'ready' | 'playing' | 'won' | 'timeUp' | 'dead';
 
 /** Score, lives, countdown and outcome for one round. */
 export class GameState {
@@ -9,13 +10,21 @@ export class GameState {
   score = 0;
   lives: number = ROUND.lives;
   timeLeft: number = ROUND.timeLimit;
-  status: RoundStatus = 'playing';
+  status: RoundStatus = 'ready';
 
   reset(): void {
     this.score = 0;
     this.lives = ROUND.lives;
     this.timeLeft = ROUND.timeLimit;
-    this.status = 'playing';
+    this.status = 'ready';
+  }
+
+  begin(): void {
+    if (this.status === 'ready') this.status = 'playing';
+  }
+
+  get isOver(): boolean {
+    return this.status === 'won' || this.status === 'timeUp' || this.status === 'dead';
   }
 
   get isWarning(): boolean {

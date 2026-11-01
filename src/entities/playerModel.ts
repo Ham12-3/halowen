@@ -6,16 +6,37 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  PlaneGeometry,
   SphereGeometry,
 } from 'three';
+import { getGlowTexture } from '../world/props/glowTexture';
 
 export interface PlayerModel {
   /** Everything that bobs while walking. */
   body: Group;
   /** Attach point for the lantern handle, in body space. */
   hand: Group;
+  /** Soft dark disc on the ground; stays put while the body bobs. */
+  shadow: Mesh;
   /** The figure's own meshes (not the lantern), toggled to blink when hurt. */
   meshes: Mesh[];
+}
+
+/**
+ * A blob shadow. The moon's shadow map is only drawn once (see game/renderer.ts),
+ * so anything that moves fakes its shadow like this instead.
+ */
+function createBlobShadow(): Mesh {
+  const material = new MeshBasicMaterial({
+    color: 0x000000,
+    map: getGlowTexture(),
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+  });
+  const blob = new Mesh(new PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2), material);
+  blob.position.y = 0.02;
+  return blob;
 }
 
 /** A small hooded wanderer with glowing eyes, built from primitives. Faces -Z. */
@@ -54,8 +75,8 @@ export function createPlayerModel(): PlayerModel {
   const hand = new Group();
   hand.position.set(0.36, 0.9, -0.42);
 
-  for (const mesh of [robe, hood, hoodTip, arm]) mesh.castShadow = true;
+  const shadow = createBlobShadow();
   const meshes = [robe, hood, hoodTip, face, ...eyes, arm];
   body.add(...meshes, hand);
-  return { body, hand, meshes };
+  return { body, hand, shadow, meshes: [...meshes, shadow] };
 }

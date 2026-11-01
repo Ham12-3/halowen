@@ -13,7 +13,8 @@ export class FpsMeter {
     private readonly renderer: WebGLRenderer,
   ) {
     this.el = document.createElement('div');
-    this.el.className = 'fps-meter';
+    // A dev tool: shown by default in dev only; players can still toggle it with backquote.
+    this.el.className = import.meta.env.DEV ? 'fps-meter' : 'fps-meter hidden';
     parent.appendChild(this.el);
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Backquote') this.el.classList.toggle('hidden');

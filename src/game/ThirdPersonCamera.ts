@@ -7,8 +7,8 @@ const CAMERA_RADIUS = 0.3;
 const MIN_DISTANCE = 1.2;
 
 /**
- * Over-the-shoulder camera locked behind the player.
- * Yaw 0 looks down -Z; turning right decreases yaw.
+ * Over-the-shoulder camera locked behind the player; its yaw is the player's
+ * facing. Yaw 0 looks down -Z; turning right decreases yaw.
  */
 export class ThirdPersonCamera {
   readonly camera: PerspectiveCamera;
@@ -19,11 +19,30 @@ export class ThirdPersonCamera {
   private readonly lookTarget = new Vector3();
   private distance: number = CAMERA.distance;
   private initialised = false;
+  /** Current keyboard turn speed (radians per second), eased towards the target. */
+  private turnRate = 0;
 
   constructor(aspect: number) {
     this.camera = new PerspectiveCamera(CAMERA.fov, aspect, CAMERA.near, CAMERA.far);
   }
 
+  /** Back to facing north (down -Z) with the default tilt. */
+  reset(): void {
+    this.yaw = 0;
+    this.pitch = CAMERA.defaultPitch;
+    this.turnRate = 0;
+  }
+
+  /** Keyboard turning: `axis` -1 = left, 1 = right. Eases in and out so turns don't jerk. */
+  turn(axis: number, dt: number): void {
+    const target = -axis * CAMERA.turnSpeed;
+    // Stop much faster than you start, so releasing the key doesn't drift on past where you aimed.
+    const sharpness = axis === 0 ? CAMERA.turnSharpness * 3 : CAMERA.turnSharpness;
+    this.turnRate += (target - this.turnRate) * (1 - Math.exp(-sharpness * dt));
+    this.yaw += this.turnRate * dt;
+  }
+
+  /** Mouse look. */
   rotate(dx: number, dy: number): void {
     this.yaw -= dx * CAMERA.mouseSensitivity;
     this.pitch = MathUtils.clamp(

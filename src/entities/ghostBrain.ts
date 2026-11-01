@@ -58,9 +58,10 @@ function startWander(g: Ghost, rng: Rng): void {
   g.timer = range(rng, 5, 10);
 }
 
-export function startRetreat(g: Ghost): void {
+export function startRetreat(g: Ghost, seconds: number = GHOST.retreatTime): void {
+  // A ghost already fleeing keeps whichever retreat lasts longer.
+  g.timer = g.mode === 'retreat' ? Math.max(g.timer, seconds) : seconds;
   g.mode = 'retreat';
-  g.timer = GHOST.retreatTime;
 }
 
 /**

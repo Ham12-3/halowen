@@ -13,6 +13,8 @@ import {
 const LIGHT_COLOR = 0xffa64d;
 const BASE_INTENSITY = 22;
 const LIGHT_RANGE = 16;
+/** Extra intensity at the peak of a flare. */
+const FLASH_INTENSITY = 140;
 
 /**
  * A hand-held iron lantern with a flickering point light.
@@ -21,6 +23,10 @@ const LIGHT_RANGE = 16;
 export class Lantern {
   readonly group = new Group();
   readonly light: PointLight;
+  /** 0..1 flame strength; low oil dims it (set by Flare). */
+  power = 1;
+  /** 0..1 flare burst laid on top of the flame (set by Flare). */
+  flash = 0;
   private readonly flame: Mesh;
   private readonly glassMaterial: MeshStandardMaterial;
 
@@ -71,8 +77,11 @@ export class Lantern {
       Math.sin(elapsed * 11.3) * 0.05 +
       Math.sin(elapsed * 23.7 + 1.3) * 0.035 +
       Math.sin(elapsed * 4.1 + 0.7) * 0.04;
-    this.light.intensity = BASE_INTENSITY * flicker;
-    this.glassMaterial.emissiveIntensity = 1.6 * flicker;
-    this.flame.scale.set(flicker, 1.6 * flicker, flicker);
+    const flame = flicker * this.power;
+    this.light.intensity = BASE_INTENSITY * flame + FLASH_INTENSITY * this.flash;
+    this.light.distance = LIGHT_RANGE * (1 + this.flash);
+    this.glassMaterial.emissiveIntensity = 1.6 * flame + 6 * this.flash;
+    const size = (0.6 + 0.4 * this.power) * flicker + this.flash;
+    this.flame.scale.set(size, 1.6 * size, size);
   }
 }

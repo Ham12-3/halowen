@@ -15,46 +15,18 @@ canvas {
   height: 100%;
 }
 
-.lock-prompt {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  background: radial-gradient(ellipse at center, rgba(5, 7, 13, 0.35), rgba(5, 7, 13, 0.8));
-  cursor: pointer;
-  user-select: none;
+kbd {
+  display: inline-block;
+  min-width: 1.7em;
+  box-sizing: border-box;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid rgba(243, 230, 200, 0.35);
+  border-bottom-width: 2px;
+  background: rgba(243, 230, 200, 0.08);
+  font: 600 12px/1.5 ui-monospace, Consolas, monospace;
+  color: #f3e6c8;
   text-align: center;
-  padding: 0 16px;
-  z-index: 10;
-}
-
-.lock-prompt.hidden {
-  display: none;
-}
-
-.lock-prompt h1 {
-  margin: 0;
-  font-family: 'Creepster', system-ui, sans-serif;
-  font-weight: 400;
-  font-size: clamp(40px, 8vw, 84px);
-  letter-spacing: 0.06em;
-  color: #ff9a3c;
-  text-shadow: 0 0 24px rgba(255, 140, 40, 0.55);
-}
-
-.lock-prompt p {
-  margin: 0;
-  font-size: 15px;
-  opacity: 0.85;
-}
-
-.lock-prompt .goal {
-  font-size: 18px;
-  opacity: 1;
-  color: #9ff0ff;
 }
 
 .fps-meter {
@@ -72,6 +44,212 @@ canvas {
   display: none;
 }
 
+/* ---------- Screens (title / pause / end of round) ---------- */
+
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 16px;
+  overflow-y: auto;
+  background: radial-gradient(ellipse at center, rgba(5, 7, 13, 0.25), rgba(5, 7, 13, 0.8));
+  cursor: pointer;
+  user-select: none;
+  text-align: center;
+}
+
+.screen.hidden {
+  display: none;
+}
+
+.screen.start {
+  background: radial-gradient(ellipse at 50% 40%, rgba(22, 12, 34, 0.4), rgba(3, 4, 9, 0.92));
+}
+
+.screen.pause {
+  background: rgba(4, 6, 12, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.screen.dead,
+.screen.timeUp {
+  background: radial-gradient(ellipse at center, rgba(30, 0, 6, 0.2), rgba(20, 0, 4, 0.75));
+}
+
+.screen-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(600px, 100%);
+  margin: auto;
+  animation: card-in 0.5s ease-out both;
+}
+
+.screen.pause .screen-card,
+.screen.end .screen-card {
+  box-sizing: border-box;
+  padding: 26px 28px;
+  border-radius: 16px;
+  background: rgba(6, 8, 16, 0.8);
+  border: 1px solid rgba(243, 230, 200, 0.15);
+}
+
+.screen.end .screen-card {
+  border-color: rgba(255, 90, 60, 0.4);
+  animation-delay: 0.6s; /* let the final moment land before the results appear */
+}
+
+.screen.won .screen-card {
+  border-color: rgba(159, 240, 255, 0.45);
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.screen p {
+  margin: 0;
+}
+
+.screen h1,
+.screen h2 {
+  margin: 0;
+  font-family: 'Creepster', system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.screen h1 {
+  font-size: clamp(46px, 10vw, 96px);
+  color: #ff9a3c;
+  text-shadow: 0 0 28px rgba(255, 140, 40, 0.6);
+}
+
+.screen h2 {
+  font-size: clamp(34px, 7vw, 56px);
+  color: #ff7a4c;
+}
+
+.screen.pause h2 {
+  color: #f3e6c8;
+}
+
+.screen.won h2 {
+  color: #9ff0ff;
+  text-shadow: 0 0 20px rgba(95, 216, 255, 0.5);
+}
+
+.screen-tagline {
+  margin-top: -8px !important;
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.screen-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.screen-rules li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(8, 10, 20, 0.65);
+  border: 1px solid rgba(243, 230, 200, 0.08);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.screen-rules svg {
+  flex: none;
+}
+
+.screen-rules b {
+  color: #ffcf8a;
+  font-weight: 600;
+}
+
+.screen-rules b.red {
+  color: #ff5a3c;
+}
+
+.screen-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.screen-keys span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.screen-cta {
+  margin-top: 4px !important;
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffcf8a;
+  animation: cta-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes cta-pulse {
+  50% { opacity: 0.45; }
+}
+
+.screen-detail {
+  font-size: 17px;
+}
+
+.screen-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 20px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.screen-button {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 154, 60, 0.5);
+  background: rgba(255, 154, 60, 0.12);
+  color: #f3e6c8;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.screen-button:hover {
+  background: rgba(255, 154, 60, 0.28);
+}
+
+.screen-note {
+  font-size: 13px;
+  opacity: 0.6;
+}
+
 /* ---------- HUD ---------- */
 
 .hud {
@@ -82,6 +260,10 @@ canvas {
   padding: 16px;
   pointer-events: none;
   user-select: none;
+}
+
+.hud.hidden {
+  display: none;
 }
 
 .hud-souls {
@@ -134,53 +316,6 @@ canvas {
   50% { transform: translateX(-50%) scale(1.1); }
 }
 
-.hud-banner {
-  position: fixed;
-  left: 50%;
-  top: 38%;
-  transform: translate(-50%, -50%);
-  width: min(560px, calc(100vw - 32px));
-  box-sizing: border-box;
-  padding: 24px 28px;
-  border-radius: 14px;
-  background: rgba(6, 8, 16, 0.78);
-  border: 1px solid rgba(255, 90, 60, 0.4);
-  text-align: center;
-  pointer-events: none;
-}
-
-.hud-banner.won {
-  border-color: rgba(159, 240, 255, 0.45);
-}
-
-.hud-banner.hidden {
-  display: none;
-}
-
-.hud-banner h2 {
-  margin: 0 0 10px;
-  font-family: 'Creepster', system-ui, sans-serif;
-  font-weight: 400;
-  font-size: clamp(32px, 6vw, 52px);
-  letter-spacing: 0.05em;
-  color: #ff7a4c;
-}
-
-.hud-banner.won h2 {
-  color: #9ff0ff;
-}
-
-.hud-banner p {
-  margin: 6px 0 0;
-  font-size: 17px;
-}
-
-.hud-banner .hint {
-  margin-top: 14px;
-  font-size: 14px;
-  opacity: 0.75;
-}
-
 .hud-lives {
   position: absolute;
   top: 16px;
@@ -205,6 +340,83 @@ canvas {
   transform: scale(0.85);
 }
 
+.hud-fuel {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(6, 10, 20, 0.55);
+  border: 1px solid rgba(255, 170, 70, 0.3);
+}
+
+.hud-fuel svg {
+  filter: drop-shadow(0 0 6px rgba(255, 170, 70, 0.7));
+  transition: opacity 0.3s, filter 0.3s;
+}
+
+.hud-fuel-bar {
+  position: relative;
+  width: 180px;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.hud-fuel-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c85a10, #ffb347 70%, #ffe2a8);
+  box-shadow: 0 0 10px rgba(255, 170, 70, 0.8);
+  transition: width 0.35s ease-out;
+}
+
+.hud-fuel-bar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(5, 7, 13, 0.8);
+}
+
+.hud-fuel.low .hud-fuel-fill {
+  background: linear-gradient(90deg, #5a2410, #a8481c);
+  box-shadow: none;
+}
+
+.hud-fuel.low svg {
+  opacity: 0.5;
+  filter: none;
+}
+
+.hud-fuel.denied {
+  border-color: rgba(255, 70, 40, 0.8);
+  animation: fuel-denied 0.4s ease-in-out;
+}
+
+@keyframes fuel-denied {
+  0%, 100% { transform: translateX(-50%); }
+  20% { transform: translateX(calc(-50% - 8px)); }
+  40% { transform: translateX(calc(-50% + 7px)); }
+  60% { transform: translateX(calc(-50% - 5px)); }
+  80% { transform: translateX(calc(-50% + 3px)); }
+}
+
+.hud-fuel.refilled {
+  animation: fuel-refilled 0.9s ease-out;
+}
+
+@keyframes fuel-refilled {
+  30% { transform: translateX(-50%) scale(1.1); box-shadow: 0 0 32px rgba(255, 170, 70, 0.9); }
+}
+
 .hurt-flash {
   position: fixed;
   inset: 0;
@@ -226,4 +438,6 @@ canvas {
   .hud-souls { font-size: 18px; }
   .hud-timer { font-size: 24px; }
   .hud-life svg { width: 22px; height: 21px; }
+  .hud-fuel-bar { width: 120px; }
+  .screen-rules li { font-size: 14px; }
 }

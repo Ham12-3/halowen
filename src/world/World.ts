@@ -1,15 +1,17 @@
 import type { Camera, Group, Scene } from 'three';
 import { WORLD } from '../game/config';
 import { createAtmosphere } from './atmosphere';
-import { type Collider, overlapsAny, resolveCircle, type XZ } from './collision';
+import { box, type Collider, overlapsAny, resolveCircle, type XZ } from './collision';
 import { generateGraveyard } from './graveyard';
 import { createGround } from './ground';
+import { SHRINES } from './layout';
 import { createLighting } from './lighting';
 import { createChurch } from './props/church';
 import { createCrypt } from './props/crypt';
 import { createFence } from './props/fence';
 import { createHouses } from './props/houses';
 import { createPumpkins } from './props/pumpkins';
+import { createShrines, SHRINE_HALF_SIZE } from './props/shrine';
 import { createTombstones } from './props/tombstones';
 import { createTrees } from './props/trees';
 import { createStreets } from './streets';
@@ -28,12 +30,14 @@ export class World {
 
     const fence = createFence(WORLD.halfSize);
     const crypt = createCrypt();
-    const statics = [...fence.colliders, ...crypt.colliders];
+    const shrines = SHRINES.map((s) => box(s.x, s.z, SHRINE_HALF_SIZE, SHRINE_HALF_SIZE));
+    const statics = [...fence.colliders, ...crypt.colliders, ...shrines];
     const layout = generateGraveyard(statics);
 
     scene.add(
       fence.group,
       crypt.group,
+      createShrines(SHRINES),
       createTombstones(layout.tombstones, layout.mounds),
       createTrees(layout.trees),
       createPumpkins(layout.pumpkins, layout.carvedPumpkins),

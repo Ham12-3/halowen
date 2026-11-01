@@ -1,6 +1,6 @@
 import { WORLD } from '../game/config';
 import { box, circle, type Collider, overlapsAny } from './collision';
-import { GATE, nearCrypt, pathDistance, SPAWN } from './layout';
+import { GATE, nearCrypt, nearShrine, pathDistance, SPAWN } from './layout';
 import { GATE_PILLAR_TOP } from './props/fence';
 import type { Placement } from './props/geometry';
 import {
@@ -45,7 +45,7 @@ function placeTombstones(rng: Rng, out: GraveyardLayout, blockers: Collider[]): 
       const pz = z + range(rng, -0.3, 0.3);
       if (rng() < 0.22) continue;
       if (pathDistance(px, pz) < 1 || pathDistance(px, pz + MOUND_OFFSET) < 0.6) continue;
-      if (nearCrypt(px, pz, 3) || nearSpawn(px, pz, 7)) continue;
+      if (nearCrypt(px, pz, 3) || nearSpawn(px, pz, 7) || nearShrine(px, pz, 2.8)) continue;
       if (fbm(px * 0.06, pz * 0.06, 21) > 0.62) continue; // open clearings
 
       const variant = pickVariant(rng);
