@@ -1,0 +1,85 @@
+# Pumpkin Hollow
+
+A browser-based 3D Halloween game. The player carries a lantern through a foggy
+churchyard at the heart of a medieval French old town (half-timbered houses, a
+Gothic church, cobbled streets). Goal: collect 10 glowing soul candles before
+the timer runs out while ghosts wander the graves. Ghost touch = lose a life
+(3 lives). The lantern flare pushes ghosts back but drains fuel; pumpkin shrines
+refill it.
+
+## Tech stack
+
+- Three.js (r187) + Vite 8 + TypeScript 7 in strict mode (`noUncheckedIndexedAccess` on)
+- No game engine, no physics library, no external models or audio files
+- Every asset is built from Three.js primitives; repeated props use `InstancedMesh`
+- Collision is custom: circles and axis-aligned boxes on the XZ ground plane
+- Sound (Phase 4) uses the Web Audio API, synthesised in code
+
+## Commands
+
+```bash
+npm install        # install dependencies
+npm run dev        # dev server at http://localhost:5173
+npm run typecheck  # tsc --noEmit
+npm run build      # typecheck + production build into dist/
+npm run preview    # serve the production build
+```
+
+## Folder structure
+
+```
+src/
+  main.ts                 entry point; exposes `window.game` in dev only
+  style.css               overlay / HUD styles
+  game/                   loop, input, camera, config (state/timer/score come in Phase 2)
+    Game.ts               owns renderer + scene, wires world/player/camera/input
+    Loop.ts               rAF loop with clamped delta
+    Input.ts              keyboard state + pointer-locked mouse look
+    ThirdPersonCamera.ts  camera locked behind the player, pulls in before tall obstacles
+    config.ts             ALL tuning constants (speeds, fog, camera, render limits)
+  world/                  static environment
+    World.ts              builds everything, owns colliders + camera blockers
+    layout.ts             hand-placed landmarks (spawn, crypt, gate) and path network
+    graveyard.ts          seeded procedural placement of graves, trees, pumpkins
+    town.ts               house rows and side-street gaps around the churchyard
+    atmosphere.ts         FogExp2, gradient sky dome, moon, stars
+    lighting.ts           moonlight (shadow-casting) + hemisphere fill
+    ground.ts / streets.ts  grass churchyard / cobbled streets (canvas texture)
+    collision.ts          circle/box colliders, resolveCircle, overlapsAny
+    rng.ts                seeded PRNG + value noise
+    props/                geometry builders (tombstones, trees, fence, pumpkins,
+                          crypt, houses, church, stained glass)
+  entities/               Player, playerModel, Lantern (ghost/candle/shrine later)
+  ui/                     LockPrompt, FpsMeter (HUD + screens come in later phases)
+```
+
+## Conventions
+
+- **Coordinates:** Y is up. North is -Z. The gate is on the south fence (+Z), the
+  crypt and church are to the north. The churchyard spans `±WORLD.halfSize`.
+- **Facing:** characters face -Z in local space; tombstones, houses and the church
+  have their fronts on +Z. Camera yaw 0 looks down -Z; turning right decreases yaw.
+- **Tuning** lives in `src/game/config.ts`, not scattered through entity code.
+- **Procedural layout** is seeded (`WORLD.seed`), so the map is identical every run.
+- **Performance target:** 60 fps on a mid-range laptop. Use `InstancedMesh` (see
+  `props/geometry.ts` `instance()` and `mergeParts()`) for anything repeated. Keep
+  the number of lights fixed at runtime (adding/removing lights recompiles shaders).
+  Pixel ratio is capped at 1.5. Only the moon casts shadows.
+- Keep files focused and under ~200 lines; split builders out when they grow.
+
+## Testing notes
+
+- Click the page to capture the mouse (pointer lock); Esc releases it.
+- Backquote (`) toggles the FPS / draw-call / triangle meter.
+- In dev, `window.game` exposes the running game for console poking, e.g.
+  `game.player.position.set(0, 0, -10)` or `game.cameraRig.yaw = Math.PI`.
+- After each phase: run `npm run typecheck`, start the dev server, and check the
+  browser console for errors.
+
+## Build phases
+
+1. **Done:** scene, fog, lighting, churchyard + French old town, player movement, camera follow
+2. Candles to collect, score, timer, HUD
+3. Ghost AI (wander, chase when close), lives, game over
+4. Lantern flare and shrines, start/pause/win screens, sound
+5. Polish (particles, ghost glow, screen shake, difficulty tuning)
